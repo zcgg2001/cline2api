@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -62,15 +63,11 @@ func loadPool() *AccountPool {
 	}
 
 	data, err := os.ReadFile(poolPath)
-	if err != nil {
-		pool = &AccountPool{Accounts: []*Account{}, Keys: []string{}, Models: []Model{}}
-		return pool
-	}
-
 	var p AccountPool
-	if err := json.Unmarshal(data, &p); err != nil {
-		pool = &AccountPool{Accounts: []*Account{}, Keys: []string{}, Models: []Model{}}
-		return pool
+	if err == nil {
+		if err := json.Unmarshal(data, &p); err != nil {
+			p = AccountPool{}
+		}
 	}
 
 	if p.Accounts == nil {
@@ -82,18 +79,65 @@ func loadPool() *AccountPool {
 	if p.Models == nil {
 		p.Models = []Model{}
 	}
+	if p.AdminUsers == nil {
+		p.AdminUsers = []AdminUser{}
+	}
+	if len(p.AdminUsers) == 0 {
+		if p.AdminPasswordHash != "" {
+			p.AdminUsers = []AdminUser{
+				{
+					ID:           "u_admin",
+					Username:     "admin",
+					PasswordHash: p.AdminPasswordHash,
+					PasswordSalt: p.AdminPasswordSalt,
+					Role:         "admin",
+					CreatedAt:    time.Now(),
+				},
+			}
+		} else {
+			salt := "4f1c9d2e7a3b8e0f"
+			p.AdminUsers = []AdminUser{
+				{
+					ID:           "u_admin",
+					Username:     "admin",
+					PasswordHash: hashAdminPassword(salt, "admin"),
+					PasswordSalt: salt,
+					Role:         "admin",
+					CreatedAt:    time.Now(),
+				},
+			}
+		}
+	}
+	migrateGroups(&p)
 	pool = &p
+	savePoolLocked()
 	return pool
 }
 
 func savePool() {
+	poolMu.Lock()
+	defer poolMu.Unlock()
+	savePoolLocked()
+}
+
+// 调用方已持有 poolMu；串行化JSON快照和文件写入，避免分组修改与调度落盘竞态。
+func savePoolLocked() {
 	data, _ := json.MarshalIndent(pool, "", "  ")
 	if err := os.WriteFile(poolPath, data, 0600); err != nil {
 		log.Printf("Failed to save accounts: %v", err)
 	}
 }
 
+func setAccountStatus(acc *Account, status string, until time.Time) {
+	poolMu.Lock()
+	defer poolMu.Unlock()
+	acc.Status = status
+	acc.CooldownUntil = until
+	savePoolLocked()
+}
+
 func addAccount(acc *Account) {
+	acc.Subscription = subscriptionValue(acc.Subscription)
 	p := loadPool()
 	poolMu.Lock()
 	p.Accounts = append(p.Accounts, acc)
@@ -109,7 +153,7 @@ func removeAccount(accountID string) bool {
 	for i, a := range p.Accounts {
 		if a.AccountID == accountID {
 			p.Accounts = append(p.Accounts[:i], p.Accounts[i+1:]...)
-			savePool()
+			savePoolLocked()
 			return true
 		}
 	}
@@ -130,20 +174,24 @@ func getAccountByID(accountID string) *Account {
 }
 
 func refreshAccountToken(acc *Account) error {
-	resp, err := refreshClineToken(acc.RefreshToken)
+	poolMu.Lock()
+	refreshToken := acc.RefreshToken
+	poolMu.Unlock()
+	resp, err := refreshClineToken(refreshToken)
+	poolMu.Lock()
+	defer poolMu.Unlock()
 	if err != nil {
 		acc.Status = "expired"
-		savePool()
+		savePoolLocked()
 		return fmt.Errorf("token refresh failed: %w", err)
 	}
-
 	acc.AccessToken = "workos:" + resp.Data.AccessToken
 	if resp.Data.RefreshToken != "" {
 		acc.RefreshToken = resp.Data.RefreshToken
 	}
 	acc.ExpiresAt = parseExpiry(resp.Data.ExpiresAt) - 60000
 	acc.Status = "active"
-	savePool()
+	savePoolLocked()
 	return nil
 }
 
@@ -166,9 +214,12 @@ func pickAccountForModelStrict(model string) *Account {
 }
 
 func pickAccountForModelWithFallback(model string, fallbackToActive bool) *Account {
-	if model == "" {
-		return pickAccount()
-	}
+	return pickAccountForModelInGroups(model, fallbackToActive, []string{"free", "pass"})
+}
+
+func pickAccountForModelInGroups(model string, fallbackToActive bool, groups []string) *Account {
+	// 在锁外解析模型，避免 getAllModels -> loadPool 的递归锁。
+	paid := model != "" && modelGroup(model) != "free"
 
 	p := loadPool()
 	poolMu.Lock()
@@ -176,7 +227,7 @@ func pickAccountForModelWithFallback(model string, fallbackToActive bool) *Accou
 
 	active := make([]*Account, 0)
 	for _, a := range p.Accounts {
-		if a.Status == "active" {
+		if a.Status == "active" && containsGroup(groups, a.Subscription) && (!paid || a.Subscription == "pass") {
 			active = append(active, a)
 		}
 	}
@@ -198,9 +249,10 @@ func pickAccountForModelWithFallback(model string, fallbackToActive bool) *Accou
 
 	if len(eligible) == 0 {
 		if fallbackToActive {
-			return pickAccountLocked(p)
+			eligible = active // 回退仍限于本次授权范围
+		} else {
+			return nil
 		}
-		return nil
 	}
 
 	cfg := getProxyConfig()
@@ -212,13 +264,19 @@ func pickAccountForModelWithFallback(model string, fallbackToActive bool) *Accou
 		n := time.Now().UnixNano() % int64(len(eligible))
 		acc = eligible[n]
 	default: // round_robin
-		if p.CurrentIdx >= len(eligible) {
-			p.CurrentIdx = 0
+		if p.GroupIndexes == nil {
+			p.GroupIndexes = map[string]int{}
 		}
-		acc = eligible[p.CurrentIdx]
-		p.CurrentIdx = (p.CurrentIdx + 1) % len(eligible)
+		scope := strings.Join(groups, ",")
+		idx := p.GroupIndexes[scope] % len(eligible)
+		if idx < 0 {
+			idx = 0
+		}
+		acc = eligible[idx]
+		p.GroupIndexes[scope] = (idx + 1) % len(eligible)
+		p.CurrentIdx = p.GroupIndexes[scope]
 	}
-	savePool()
+	savePoolLocked()
 	return acc
 }
 
@@ -226,7 +284,7 @@ func pickAccountForModelWithFallback(model string, fallbackToActive bool) *Accou
 func pickAccountLocked(p *AccountPool) *Account {
 	active := make([]*Account, 0)
 	for _, a := range p.Accounts {
-		if a.Status == "active" {
+		if a.Status == "active" && (a.Subscription == "free" || a.Subscription == "pass") {
 			active = append(active, a)
 		}
 	}
@@ -248,19 +306,25 @@ func pickAccountLocked(p *AccountPool) *Account {
 		acc = active[p.CurrentIdx]
 		p.CurrentIdx = (p.CurrentIdx + 1) % len(active)
 	}
-	savePool()
+	savePoolLocked()
 	return acc
 }
 
 func ensureAccountToken(acc *Account) (string, error) {
+	poolMu.Lock()
 	if acc.AccessToken != "" && time.Now().UnixMilli() < acc.ExpiresAt {
-		return acc.AccessToken, nil
+		token := acc.AccessToken
+		poolMu.Unlock()
+		return token, nil
 	}
+	poolMu.Unlock()
 
 	if err := refreshAccountToken(acc); err != nil {
 		return "", err
 	}
 
+	poolMu.Lock()
+	defer poolMu.Unlock()
 	return acc.AccessToken, nil
 }
 
@@ -273,6 +337,7 @@ func listAccounts() []*Account {
 	for i, a := range p.Accounts {
 		// Don't expose tokens
 		cp := &Account{
+			Subscription:     a.Subscription,
 			AccountID:        a.AccountID,
 			Email:            a.Email,
 			Status:           a.Status,
@@ -353,6 +418,7 @@ func addAccountFromDeviceAuth() (*Account, error) {
 	if cline.Data.RefreshToken == "" {
 		return nil, fmt.Errorf("cline registration missing refresh token")
 	}
+	detectedSubscription := detectClineSubscription(cline.Data.AccessToken)
 
 	email := "unknown"
 	if cline.Data.UserInfo != nil && cline.Data.UserInfo.Email != "" {
@@ -366,6 +432,7 @@ func addAccountFromDeviceAuth() (*Account, error) {
 		AccessToken:  "workos:" + cline.Data.AccessToken,
 		ExpiresAt:    parseExpiry(cline.Data.ExpiresAt) - 60000,
 		Status:       "active",
+		Subscription: detectedSubscription,
 		CreatedAt:    time.Now(),
 	}
 

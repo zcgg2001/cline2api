@@ -25,7 +25,7 @@ func TestCallClineAPIRefreshRetryReplaysRequestBody(t *testing.T) {
 		httpClient.Transport = oldTransport
 	})
 
-	account := &Account{
+	account := &Account{Subscription: "free",
 		AccountID:    "refresh-account",
 		Email:        "refresh@example.com",
 		RefreshToken: "refresh-token",
@@ -112,14 +112,14 @@ func TestCallClineAPIFreeRetriesNextGLMAccountAfterTokenRefreshFailure(t *testin
 		httpClient.Transport = oldTransport
 	})
 
-	first := &Account{
+	first := &Account{Subscription: "free",
 		AccountID:    "refresh-failed",
 		Email:        "refresh-failed@example.com",
 		RefreshToken: "refresh-one",
 		ExpiresAt:    time.Now().Add(-time.Hour).UnixMilli(),
 		Status:       "active",
 	}
-	second := &Account{
+	second := &Account{Subscription: "free",
 		AccountID:   "glm-two",
 		Email:       "two@example.com",
 		AccessToken: "token-two",
@@ -202,14 +202,14 @@ func TestCallClineAPIFreeRetriesNextGLMAccountAfterTransportFailure(t *testing.T
 		httpClient.Transport = oldTransport
 	})
 
-	first := &Account{
+	first := &Account{Subscription: "free",
 		AccountID:   "transport-failed",
 		Email:       "transport-failed@example.com",
 		AccessToken: "token-one",
 		ExpiresAt:   time.Now().Add(time.Hour).UnixMilli(),
 		Status:      "active",
 	}
-	second := &Account{
+	second := &Account{Subscription: "free",
 		AccountID:   "glm-two",
 		Email:       "two@example.com",
 		AccessToken: "token-two",
@@ -278,14 +278,14 @@ func TestCallClineAPIFreeRetriesNextGLMAccountAfterQuota429(t *testing.T) {
 		httpClient.Transport = oldTransport
 	})
 
-	first := &Account{
+	first := &Account{Subscription: "free",
 		AccountID:   "glm-one",
 		Email:       "one@example.com",
 		AccessToken: "token-one",
 		ExpiresAt:   time.Now().Add(time.Hour).UnixMilli(),
 		Status:      "active",
 	}
-	second := &Account{
+	second := &Account{Subscription: "free",
 		AccountID:   "glm-two",
 		Email:       "two@example.com",
 		AccessToken: "token-two",
@@ -365,14 +365,14 @@ func TestCallClineAPIFreeFallsBackToDSAfterAllGLMAccountsUnavailable(t *testing.
 		httpClient.Transport = oldTransport
 	})
 
-	first := &Account{
+	first := &Account{Subscription: "free",
 		AccountID:   "glm-one",
 		Email:       "one@example.com",
 		AccessToken: "token-one",
 		ExpiresAt:   time.Now().Add(time.Hour).UnixMilli(),
 		Status:      "active",
 	}
-	second := &Account{
+	second := &Account{Subscription: "free",
 		AccountID:   "glm-two",
 		Email:       "two@example.com",
 		AccessToken: "token-two",
@@ -450,7 +450,7 @@ func TestCallClineAPIFreeRetriesNextDSAccountAfterQuota429(t *testing.T) {
 		httpClient.Transport = oldTransport
 	})
 
-	first := &Account{
+	first := &Account{Subscription: "free",
 		AccountID:   "ds-one",
 		Email:       "one@example.com",
 		AccessToken: "token-one",
@@ -460,7 +460,7 @@ func TestCallClineAPIFreeRetriesNextDSAccountAfterQuota429(t *testing.T) {
 			freeModelPrimary: time.Now().Add(time.Hour),
 		},
 	}
-	second := &Account{
+	second := &Account{Subscription: "free",
 		AccountID:   "ds-two",
 		Email:       "two@example.com",
 		AccessToken: "token-two",
@@ -547,7 +547,7 @@ func TestCallClineAPIFreeReturnsToGLMAfterCooldownExpires(t *testing.T) {
 		httpClient.Transport = oldTransport
 	})
 
-	account := &Account{
+	account := &Account{Subscription: "free",
 		AccountID:   "recovery-account",
 		Email:       "recovery@example.com",
 		AccessToken: "recovery-token",
@@ -619,7 +619,7 @@ func TestCallClineAPIFreeKeepsModelCooldownsIndependent(t *testing.T) {
 		{name: "DS cooldown allows GLM", cooldownModel: freeModelFallback, wantModel: freeModelPrimary},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			account := &Account{
+			account := &Account{Subscription: "free",
 				AccountID:   "independent-account",
 				Email:       "independent@example.com",
 				AccessToken: "independent-token",
@@ -679,7 +679,7 @@ func TestCallClineAPIFreeDoesNotPickCoolingAccount(t *testing.T) {
 		httpClient.Transport = oldTransport
 	})
 
-	account := &Account{
+	account := &Account{Subscription: "free",
 		AccountID:      "glm-cooling",
 		Email:          "cooling@example.com",
 		AccessToken:    "token-cooling",
@@ -721,8 +721,8 @@ func TestPickAccountForModelStrictPreservesStrategy(t *testing.T) {
 		setProxyConfig(oldConfig)
 	})
 
-	first := &Account{AccountID: "first", Status: "active"}
-	second := &Account{AccountID: "second", Status: "active"}
+	first := &Account{Subscription: "free", AccountID: "first", Status: "active"}
+	second := &Account{Subscription: "free", AccountID: "second", Status: "active"}
 	pool = &AccountPool{Accounts: []*Account{first, second}}
 
 	for _, strategy := range []string{"fill", "round_robin", "random"} {
@@ -761,7 +761,7 @@ func TestCallClineAPIDirectModelsKeepExactIDWithoutFallback(t *testing.T) {
 
 	for _, model := range []string{"z-ai/glm-5.3-flash", "deepseek/deepseek-v4-flash"} {
 		t.Run(model, func(t *testing.T) {
-			account := &Account{
+			account := &Account{Subscription: "free",
 				AccountID:   "direct-account",
 				Email:       "direct@example.com",
 				AccessToken: "direct-token",
@@ -827,7 +827,7 @@ func TestHandleResponsesFreeReturnsTooManyRequestsWhenBothPoolsUnavailable(t *te
 		requestLogsMu.Unlock()
 	})
 
-	account := &Account{
+	account := &Account{Subscription: "free",
 		AccountID:   "quota-account",
 		Email:       "quota@example.com",
 		AccessToken: "quota-token",

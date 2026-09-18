@@ -479,6 +479,14 @@ func handleResponses(w http.ResponseWriter, r *http.Request) {
 
 	chat := responsesToChat(params)
 	chatModel, _ := chat["model"].(string)
+	if model == "" {
+		chatModel = defaultModelForGroups(requestGroups(r.Context()))
+		chat["model"] = chatModel
+		reqLog.Model = chatModel
+	}
+	if !authorizeModel(w, r, chatModel) {
+		return
+	}
 	route := routeModel(chatModel)
 
 	switch route {
@@ -531,7 +539,7 @@ func handleResponses(w http.ResponseWriter, r *http.Request) {
 
 	default: // cline
 		reqLog.Upstream = upstreamCline
-		upResp, acc, err := callClineAPI(chat, isStream)
+		upResp, acc, err := callClineAPIInGroups(chat, isStream, requestGroups(r.Context()))
 		if effectiveModel, ok := chat["model"].(string); ok && effectiveModel != "" {
 			reqLog.Model = effectiveModel
 		}
@@ -546,6 +554,7 @@ func handleResponses(w http.ResponseWriter, r *http.Request) {
 		defer upResp.Body.Close()
 		if acc != nil {
 			reqLog.AccountID = acc.AccountID
+			reqLog.Subscription = responseSubscription(upResp)
 			reqLog.AccountEmail = acc.Email
 		}
 

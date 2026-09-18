@@ -3,6 +3,7 @@ package main
 import "time"
 
 type Account struct {
+	Subscription     string    `json:"subscription"` // unknown / free / pass；旧账号待确认，OAuth 可自动识别
 	AccountID        string    `json:"accountId"`
 	Email            string    `json:"email"`
 	RefreshToken     string    `json:"refreshToken"`
@@ -47,12 +48,24 @@ type ModelStat struct {
 	CachedTokens     int64  `json:"cachedTokens"`
 }
 
+type AdminUser struct {
+	ID           string    `json:"id"`
+	Username     string    `json:"username"`
+	PasswordHash string    `json:"passwordHash"`
+	PasswordSalt string    `json:"passwordSalt,omitempty"`
+	Role         string    `json:"role,omitempty"` // admin / user
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
 type AccountPool struct {
-	Accounts     []*Account `json:"accounts"`
-	CurrentIdx   int        `json:"currentIdx"`
-	Keys         []string   `json:"keys,omitempty"`
-	Models       []Model    `json:"models,omitempty"`
-	DefaultModel string     `json:"defaultModel,omitempty"`
+	Accounts     []*Account          `json:"accounts"`
+	CurrentIdx   int                 `json:"currentIdx"`
+	Keys         []string            `json:"keys,omitempty"`
+	KeyGroups    map[string][]string `json:"keyGroups,omitempty"`
+	GroupIndexes map[string]int      `json:"groupIndexes,omitempty"`
+	Models       []Model             `json:"models,omitempty"`
+	DefaultModel string              `json:"defaultModel,omitempty"`
+	AdminUsers   []AdminUser         `json:"adminUsers,omitempty"`
 	// 访问设置：监听地址与管理后台密码（后台 UI 保存）
 	ListenHost        string `json:"listenHost,omitempty"`
 	AdminPasswordHash string `json:"adminPasswordHash,omitempty"`

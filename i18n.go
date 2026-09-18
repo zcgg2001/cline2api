@@ -206,6 +206,34 @@ var apiMessages = map[string]map[locale]string{
 		localeZH: "压缩参数不能为负数",
 		localeEN: "compaction values cannot be negative",
 	},
+	"user_required": {
+		localeZH: "必须提供用户名和密码",
+		localeEN: "Username and password are required",
+	},
+	"user_exists": {
+		localeZH: "用户已存在",
+		localeEN: "User already exists",
+	},
+	"user_added": {
+		localeZH: "用户已添加",
+		localeEN: "User added",
+	},
+	"user_deleted": {
+		localeZH: "用户已删除",
+		localeEN: "User deleted",
+	},
+	"user_not_found": {
+		localeZH: "用户不存在",
+		localeEN: "User not found",
+	},
+	"cannot_delete_last_user": {
+		localeZH: "不能删除最后一个管理员用户",
+		localeEN: "Cannot delete the last admin user",
+	},
+	"password_required": {
+		localeZH: "必须提供新密码",
+		localeEN: "New password is required",
+	},
 }
 
 func requestLocale(r *http.Request) locale {

@@ -227,7 +227,7 @@ func startProxy(host string, port int) error {
 	loadRequestLogs()
 	activeCount := 0
 	for _, a := range p.Accounts {
-		if a.Status == "active" {
+		if a.Status == "active" && (a.Subscription == "free" || a.Subscription == "pass") {
 			// Try to pre-warm tokens
 			if a.AccessToken == "" || time.Now().UnixMilli() >= a.ExpiresAt {
 				if err := refreshAccountToken(a); err != nil {
@@ -276,7 +276,9 @@ func startProxy(host string, port int) error {
 		return corsHandler(func(w http.ResponseWriter, r *http.Request) {
 			// Allow requests without key if no keys configured
 			p := loadPool()
+			poolMu.Lock()
 			if len(p.Keys) == 0 {
+				poolMu.Unlock()
 				next(w, r)
 				return
 			}
@@ -289,13 +291,20 @@ func startProxy(host string, port int) error {
 			}
 
 			valid := false
+			groups := []string{}
 			for _, k := range p.Keys {
 				if k == key {
 					valid = true
+					if configured, exists := p.KeyGroups[k]; exists {
+						groups = append(groups, configured...)
+					} else {
+						groups = []string{"free", "pass"}
+					}
 					break
 				}
 			}
 
+			poolMu.Unlock()
 			if !valid {
 				writeJSON(w, http.StatusUnauthorized, map[string]any{
 					"error": map[string]string{
@@ -305,24 +314,32 @@ func startProxy(host string, port int) error {
 				})
 				return
 			}
-			next(w, r)
+			if normalized, err := normalizeGroups(groups); err == nil {
+				groups = normalized
+			} else {
+				groups = []string{}
+			}
+			next(w, r.WithContext(context.WithValue(r.Context(), groupScopeKey{}, groups)))
 		})
 	}
 
 	modelsHandler := apiKeyHandler(func(w http.ResponseWriter, r *http.Request) {
 		all := getAllModels()
-		list := make([]map[string]any, len(all))
-		for i, m := range all {
+		list := make([]map[string]any, 0, len(all))
+		for _, m := range all {
+			if !groupsAllowModel(requestGroups(r.Context()), m.ID) || routeModel(m.ID) == "reject" {
+				continue
+			}
 			ownedBy := "cline"
 			if m.Source == "zen" || m.Provider == "opencode" {
 				ownedBy = "opencode"
 			}
-			list[i] = map[string]any{
+			list = append(list, map[string]any{
 				"id":       m.ID,
 				"object":   "model",
 				"created":  time.Now().UnixMilli(),
 				"owned_by": ownedBy,
-			}
+			})
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"object": "list", "data": list})
 	})
@@ -368,6 +385,13 @@ func startProxy(host string, port int) error {
 			}
 		}
 		model, _ := params["model"].(string)
+		if model == "" {
+			model = defaultModelForGroups(requestGroups(r.Context()))
+			params["model"] = model
+		}
+		if !authorizeModel(w, r, model) {
+			return
+		}
 		log.Printf("  client: stream=%v tools=%d model=%s", isStream, toolCount, model)
 
 		reqLog := RequestLog{StartedAt: time.Now(), Protocol: "openai", Model: model, Stream: isStream}
@@ -435,7 +459,7 @@ func startProxy(host string, port int) error {
 			return
 		}
 
-		resp, acc, err := callClineAPI(params, isStream)
+		resp, acc, err := callClineAPIInGroups(params, isStream, requestGroups(r.Context()))
 		if effectiveModel, ok := params["model"].(string); ok && effectiveModel != "" {
 			reqLog.Model = effectiveModel
 		}
@@ -451,6 +475,7 @@ func startProxy(host string, port int) error {
 		defer resp.Body.Close()
 		if acc != nil {
 			reqLog.AccountID = acc.AccountID
+			reqLog.Subscription = responseSubscription(resp)
 			reqLog.AccountEmail = acc.Email
 		}
 
@@ -655,6 +680,12 @@ func (e *freeModelUnavailableError) Error() string {
 }
 
 func clineErrorHTTPStatus(err error) int {
+	if _, ok := err.(*groupUnavailableError); ok {
+		return http.StatusServiceUnavailable
+	}
+	if e, ok := err.(*clineAPIError); ok && e.statusCode == http.StatusForbidden {
+		return http.StatusForbidden
+	}
 	if _, ok := err.(*freeModelUnavailableError); ok {
 		return http.StatusTooManyRequests
 	}
@@ -662,23 +693,44 @@ func clineErrorHTTPStatus(err error) int {
 }
 
 func callClineAPI(params map[string]any, stream bool) (*http.Response, *Account, error) {
+	return callClineAPIInGroups(params, stream, []string{"free", "pass"})
+}
+
+func callClineAPIInGroups(params map[string]any, stream bool, groups []string) (*http.Response, *Account, error) {
 	model, _ := params["model"].(string)
+	if !groupsAllowModel(groups, model) {
+		return nil, nil, &clineAPIError{statusCode: 403, message: "model group not authorized"}
+	}
 	if model == "free" {
-		return callFreeClineAPI(params, stream)
+		return callFreeClineAPIInGroups(params, stream, groups)
 	}
 
-	acc := pickAccountForModel(model)
-	if acc == nil {
-		return nil, nil, fmt.Errorf("no active accounts available. Use --login or admin API to add accounts")
+	for {
+		acc := pickAccountForModelInGroups(model, false, groups)
+		if acc == nil {
+			return nil, nil, &groupUnavailableError{groups: groups}
+		}
+		resp, used, err := callClineAPIWithAccount(acc, params, stream)
+		var unavailable *clineAccountUnavailableError
+		if errors.As(err, &unavailable) {
+			continue
+		}
+		return resp, used, err
 	}
-	return callClineAPIWithAccount(acc, params, stream)
 }
 
 func callFreeClineAPI(params map[string]any, stream bool) (*http.Response, *Account, error) {
+	return callFreeClineAPIInGroups(params, stream, []string{"free", "pass"})
+}
+
+func callFreeClineAPIInGroups(params map[string]any, stream bool, groups []string) (*http.Response, *Account, error) {
 	for _, model := range freeModelChain {
+		if modelGroup(model) != "free" {
+			continue
+		}
 		params["model"] = model
 		for {
-			acc := pickAccountForModelStrict(model)
+			acc := pickAccountForModelInGroups(model, false, groups)
 			if acc == nil {
 				break
 			}
@@ -697,10 +749,13 @@ func callFreeClineAPI(params map[string]any, stream bool) (*http.Response, *Acco
 			}
 		}
 	}
-	return nil, nil, &freeModelUnavailableError{message: "no eligible accounts available for free models"}
+	return nil, nil, &freeModelUnavailableError{message: "no eligible accounts for free models in authorized groups: " + strings.Join(groups, ", ")}
 }
 
 func callClineAPIWithAccount(acc *Account, params map[string]any, stream bool) (*http.Response, *Account, error) {
+	poolMu.Lock()
+	subscription := subscriptionValue(acc.Subscription)
+	poolMu.Unlock()
 	token, err := ensureAccountToken(acc)
 	if err != nil {
 		// Try other accounts
@@ -732,9 +787,7 @@ func callClineAPIWithAccount(acc *Account, params map[string]any, stream bool) (
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		acc.Status = "cooldown"
-		acc.CooldownUntil = time.Now().Add(5 * time.Minute)
-		savePool()
+		setAccountStatus(acc, "cooldown", time.Now().Add(5*time.Minute))
 		return nil, acc, &clineAccountUnavailableError{err: fmt.Errorf("upstream request: %w", err)}
 	}
 
@@ -742,25 +795,22 @@ func callClineAPIWithAccount(acc *Account, params map[string]any, stream bool) (
 		resp.Body.Close()
 		// Refresh token and retry
 		if err := refreshAccountToken(acc); err == nil {
+			poolMu.Lock()
 			token = acc.AccessToken
+			poolMu.Unlock()
 			req.Header = clineHeaders(token, sessionID)
 			req.Body = io.NopCloser(bytes.NewReader(bodyJSON))
 			resp, err = httpClient.Do(req)
 			if err != nil {
-				acc.Status = "cooldown"
-				acc.CooldownUntil = time.Now().Add(5 * time.Minute)
-				savePool()
+				setAccountStatus(acc, "cooldown", time.Now().Add(5*time.Minute))
 				return nil, acc, &clineAccountUnavailableError{err: fmt.Errorf("upstream retry: %w", err)}
 			}
 			if resp.StatusCode == 401 {
 				resp.Body.Close()
-				acc.Status = "expired"
-				savePool()
+				setAccountStatus(acc, "expired", time.Time{})
 				return nil, acc, &clineAccountUnavailableError{err: fmt.Errorf("account %s token expired permanently", acc.Email)}
 			}
 		} else {
-			acc.Status = "expired"
-			savePool()
 			return nil, acc, &clineAccountUnavailableError{err: fmt.Errorf("account %s refresh failed: %w", acc.Email, err)}
 		}
 	}
@@ -776,17 +826,18 @@ func callClineAPIWithAccount(acc *Account, params map[string]any, stream bool) (
 			if model != "" {
 				setModelCooldown(acc, model, until)
 			} else {
-				acc.Status = "cooldown"
-				acc.CooldownUntil = until
-				savePool()
+				setAccountStatus(acc, "cooldown", until)
 			}
 		}
 		return nil, acc, &clineAPIError{statusCode: resp.StatusCode, message: truncate(bodyStr, 500)}
 	}
 
+	poolMu.Lock()
 	acc.LastUsed = time.Now()
 	acc.UsageCount++
-	savePool()
+	savePoolLocked()
+	poolMu.Unlock()
+	resp.Request = req.WithContext(context.WithValue(req.Context(), subscriptionSnapshotKey{}, subscription))
 	return resp, acc, nil
 }
 
@@ -831,7 +882,7 @@ func startCooldownRecovery() {
 			poolMu.Lock()
 			var toRecover []*Account
 			for _, acc := range p.Accounts {
-				if acc.Status != "cooldown" {
+				if acc.Status != "cooldown" || (acc.Subscription != "free" && acc.Subscription != "pass") {
 					continue
 				}
 				// 有恢复时间且已过期 → 探活
@@ -861,9 +912,16 @@ func startCooldownRecovery() {
 func testAccount(acc *Account) accountTestResult {
 	result := accountTestResult{AccountID: acc.AccountID, Email: acc.Email}
 	started := time.Now()
+	poolMu.Lock()
+	subscription := subscriptionValue(acc.Subscription)
+	poolMu.Unlock()
+	if subscription == "unknown" {
+		result.Error = "confirm account subscription (Free/Pass) before testing"
+		return result
+	}
 
 	params := map[string]any{
-		"model":      getDefaultModel(),
+		"model":      defaultModelForGroups([]string{subscription}),
 		"max_tokens": 16,
 		"stream":     false,
 		"messages": []any{
@@ -907,12 +965,12 @@ func testAccount(acc *Account) accountTestResult {
 		result.OutputTokens = usage.Completion
 	}
 	// If the account was in cooldown/expired but the test succeeded, restore it.
+	poolMu.Lock()
 	if acc.Status != "active" {
-		poolMu.Lock()
 		acc.Status = "active"
-		poolMu.Unlock()
-		savePool()
+		savePoolLocked()
 	}
+	poolMu.Unlock()
 	return result
 }
 
@@ -1069,7 +1127,7 @@ func modelCooldownActive(acc *Account, model string) bool {
 	}
 	if time.Now().After(until) {
 		delete(acc.ModelCooldowns, model)
-		savePool()
+		savePoolLocked()
 		return false
 	}
 	return true
@@ -1568,6 +1626,13 @@ func handleAnthropicMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	openAIReq := anthropicToOpenAI(req)
+	if req.Model == "" {
+		req.Model = defaultModelForGroups(requestGroups(r.Context()))
+		openAIReq["model"] = req.Model
+	}
+	if !authorizeModel(w, r, req.Model) {
+		return
+	}
 
 	log.Printf("  anthropic: model=%s stream=%v msgs=%d", req.Model, req.Stream, len(req.Messages))
 
@@ -1641,7 +1706,7 @@ func handleAnthropicMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, acc, err := callClineAPI(openAIReq, req.Stream)
+	resp, acc, err := callClineAPIInGroups(openAIReq, req.Stream, requestGroups(r.Context()))
 	if effectiveModel, ok := openAIReq["model"].(string); ok && effectiveModel != "" {
 		reqLog.Model = effectiveModel
 	}
@@ -1657,6 +1722,7 @@ func handleAnthropicMessages(w http.ResponseWriter, r *http.Request) {
 	defer resp.Body.Close()
 	if acc != nil {
 		reqLog.AccountID = acc.AccountID
+		reqLog.Subscription = responseSubscription(resp)
 		reqLog.AccountEmail = acc.Email
 	}
 

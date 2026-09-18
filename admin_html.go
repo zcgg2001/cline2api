@@ -270,6 +270,10 @@ textarea{resize:vertical;min-height:88px;font-family:ui-monospace,'SF Mono','Cas
 	  .nav-item .nav-label{font-size:12px}
 	  .action-row .btn{flex:1;justify-content:center}
 	}
+.subscription-control{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.subscription-control label{display:inline-flex;align-items:center;margin:0}
+.subscription-control select{width:auto;min-width:90px}
+.account-table .status{white-space:nowrap}
 </style>
 </head>
 <body>
@@ -306,6 +310,10 @@ textarea{resize:vertical;min-height:88px;font-family:ui-monospace,'SF Mono','Cas
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       <span class="nav-label">设置</span>
     </div>
+    <div class="nav-item" data-tab="users">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span class="nav-label">用户管理</span>
+    </div>
     <div class="nav-item" data-tab="about">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
       <span class="nav-label">关于</span>
@@ -322,6 +330,7 @@ textarea{resize:vertical;min-height:88px;font-family:ui-monospace,'SF Mono','Cas
       <button type="button" id="langZh" onclick="setLang('zh')">中文</button>
       <button type="button" id="langEn" onclick="setLang('en')">English</button>
     </div>
+    <button type="button" class="btn btn-sm" style="width:100%;margin-top:8px;font-size:11px;padding:4px 0" onclick="logoutAdmin()">退出登录</button>
   </div>
 </div>
 
@@ -421,12 +430,19 @@ textarea{resize:vertical;min-height:88px;font-family:ui-monospace,'SF Mono','Cas
   </div>
   <div class="section">
     <div class="section-body flush">
+      <div class="form-row" style="padding:16px;flex-wrap:wrap">
+        <div class="field"><label for="accountGroupFilter">订阅分组</label><select id="accountGroupFilter" onchange="loadAccounts()"><option value="">全部</option><option value="free">Free</option><option value="pass">Pass</option><option value="unknown">待确认</option></select></div>
+        <div class="field"><label for="bulkSubscription">批量设置订阅</label><select id="bulkSubscription"><option value="free">Free</option><option value="pass">Pass</option><option value="unknown">待确认</option></select></div>
+        <button class="btn" onclick="updateSubscriptions(this)">应用到勾选账号</button>
+      </div>
+      <p style="padding:0 16px;color:var(--text2)">待确认账号不参与调度；分组只允许使用 Key 授权范围内的账号。</p>
+      <div id="subscriptionSummary" style="padding:16px" aria-live="polite"></div>
       <table class="account-table">
         <thead>
-          <tr><th>邮箱</th><th>状态</th><th>请求</th><th>输入</th><th>输出</th><th>总 Token</th><th>缓存</th><th>最后使用</th><th>创建时间</th><th>操作</th></tr>
+          <tr><th>邮箱</th><th>订阅</th><th>状态</th><th>请求</th><th>输入</th><th>输出</th><th>总 Token</th><th>缓存</th><th>最后使用</th><th>创建时间</th><th>操作</th></tr>
         </thead>
         <tbody id="accountTableBody">
-          <tr><td colspan="10" class="empty">加载中...</td></tr>
+          <tr><td colspan="11" class="empty">加载中...</td></tr>
         </tbody>
       </table>
       <div id="accountCards" class="account-cards"></div>
@@ -437,6 +453,7 @@ textarea{resize:vertical;min-height:88px;font-family:ui-monospace,'SF Mono','Cas
 <div id="tab-import" class="tab-panel" style="display:none">
   <div class="large-title">导入账号</div>
   <div class="large-subtitle">通过 OAuth 登录、手动 Token 或批量文件添加账号</div>
+  <div class="form-row"><div class="field"><label for="importSubscription">新账号订阅（文件中已有分类优先）</label><select id="importSubscription"><option value="unknown">待确认</option><option value="free">Free</option><option value="pass">Pass</option></select></div></div>
   <div class="section">
     <div class="tabs" id="importTabs">
       <div class="tab active" data-tab="oauth">OAuth 浏览器登录</div>
@@ -539,6 +556,7 @@ textarea{resize:vertical;min-height:88px;font-family:ui-monospace,'SF Mono','Cas
       <div class="form-actions" style="margin-bottom:14px">
         <button class="btn btn-success" onclick="generateKey()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>生成新密钥</button>
       </div>
+      <div class="field" style="margin-bottom:16px"><label for="newKeyGroups">新 Key 可用分组</label><select id="newKeyGroups"><option value="free">仅 Free</option><option value="pass">仅 Pass</option><option value="free,pass">Free + Pass</option></select></div>
       <div id="keysList"></div>
       <div id="keyGenResult" style="margin-top:8px"></div>
     </div>
@@ -824,6 +842,58 @@ textarea{resize:vertical;min-height:88px;font-family:ui-monospace,'SF Mono','Cas
   </div>
 </div>
 
+<div id="tab-users" class="tab-panel" style="display:none">
+  <div class="page-header">
+    <div>
+      <div class="large-title">用户管理</div>
+      <div class="large-subtitle">管理可登录后台的管理员与用户账号</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary btn-sm" onclick="loadUsers()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>刷新用户</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>添加新用户</div>
+    <div class="section-body">
+      <div class="form-row" style="display:flex;gap:12px;flex-wrap:wrap">
+        <div class="field" style="flex:1;min-width:160px">
+          <label>用户名</label>
+          <input type="text" id="newUsername" placeholder="用户名，如 admin2">
+        </div>
+        <div class="field" style="flex:1;min-width:160px">
+          <label>密码</label>
+          <input type="password" id="newPassword" placeholder="初始密码">
+        </div>
+        <div class="field" style="width:140px">
+          <label>角色</label>
+          <select id="newUserRole">
+            <option value="admin">管理员 (admin)</option>
+            <option value="user">普通用户 (user)</option>
+          </select>
+        </div>
+        <div class="field" style="align-self:flex-end">
+          <button class="btn btn-primary" onclick="addUser()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>添加用户</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>用户列表</div>
+    <div class="section-body flush">
+      <table>
+        <thead>
+          <tr><th style="width:25%">用户名</th><th style="width:20%">角色</th><th style="width:30%">创建时间</th><th style="width:25%">操作</th></tr>
+        </thead>
+        <tbody id="userTableBody">
+          <tr><td colspan="4" class="empty">加载中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 </div>
 </div>
 </div>
@@ -833,9 +903,18 @@ textarea{resize:vertical;min-height:88px;font-family:ui-monospace,'SF Mono','Cas
 <div id="loginOverlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(248,250,252,0.96);align-items:center;justify-content:center">
   <div style="width:min(360px,calc(100vw - 40px));padding:32px;background:var(--surface);border-radius:14px;border:1px solid var(--border2);text-align:center;box-shadow:0 10px 40px rgba(15,23,42,0.12)">
     <h2 style="margin:0 0 6px;font-size:20px;color:var(--text)">Cline2API 管理后台</h2>
-    <p style="margin:0 0 22px;color:var(--text2);font-size:13px">该后台已启用访问密码，请输入密码登录</p>
-    <input type="password" id="loginPassword" placeholder="访问密码" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px" onkeydown="if(event.key==='Enter')submitLogin()">
-    <button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="submitLogin()">登 录</button>
+    <p style="margin:0 0 20px;color:var(--text2);font-size:13px">请输入管理员账号与密码登录</p>
+    <div style="display:flex;flex-direction:column;gap:10px;text-align:left">
+      <div>
+        <label style="font-size:12px;color:var(--text2);margin-bottom:4px;display:block">用户名</label>
+        <input type="text" id="loginUsername" placeholder="默认 admin" autocomplete="username" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px" onkeydown="if(event.key==='Enter')submitLogin()">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text2);margin-bottom:4px;display:block">密码</label>
+        <input type="password" id="loginPassword" placeholder="输入密码" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px" onkeydown="if(event.key==='Enter')submitLogin()">
+      </div>
+    </div>
+    <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="submitLogin()">登 录</button>
     <div id="loginError" style="color:var(--red);font-size:13px;margin-top:12px"></div>
   </div>
 </div>
@@ -848,6 +927,24 @@ textarea{resize:vertical;min-height:88px;font-family:ui-monospace,'SF Mono','Cas
 
 // ===== i18n =====
 const I18N = {
+  '订阅分组': 'Subscription groups',
+  '当前分组暂无账号': 'No accounts in this group',
+  '未授权': 'Not authorized',
+  '全部': 'All',
+  '待确认': 'Unconfirmed',
+  '批量设置订阅': 'Bulk subscription update',
+  '应用到勾选账号': 'Apply to selected accounts',
+  '订阅': 'Subscription',
+  '待确认账号不参与调度；分组只允许使用 Key 授权范围内的账号。': 'Unconfirmed accounts are excluded. Only accounts in the API key scope can be scheduled.',
+  '新账号订阅（文件中已有分类优先）': 'New account subscription (file values take priority)',
+  '新 Key 可用分组': 'Allowed groups for new keys',
+  '仅 Free': 'Free only',
+  '仅 Pass': 'Pass only',
+  '请选择账号': 'Select accounts first',
+  '确认更新这些账号的订阅？': 'Update subscriptions for these accounts?',
+  '订阅已更新': 'Subscriptions updated',
+  '分组权限已更新': 'Group permissions updated',
+  '分组统计（最近30天，最多5000条日志）': 'Group usage (last 30 days, up to 5,000 logs)',
   'Cline 代理': 'Cline Proxy',
   '多账号轮询 · 双协议': 'Multi-account rotation · Dual protocol',
   '管理': 'Admin',
@@ -979,7 +1076,29 @@ const I18N = {
   '中，明文保存，请注意保护。': '; keep them safe.',
   '• 所有 API 请求通过本机代理转发至 Cline 官方服务器，不经过任何第三方。': '• All API requests are proxied to Cline\'s official servers, never through third parties.',
   '• 关闭窗口即停止服务，无后台驻留进程。': '• Closing the window stops the service; no background process.',
+  '用户管理': 'Users',
+  '管理可登录后台的管理员与用户账号': 'Manage admin and user accounts',
+  '刷新用户': 'Refresh Users',
+  '添加新用户': 'Add New User',
+  '用户列表': 'User List',
+  '用户名': 'Username',
+  '密码': 'Password',
+  '角色': 'Role',
+  '管理员': 'Admin',
+  '用户': 'User',
+  '重置密码': 'Reset Password',
+  '退出登录': 'Sign Out',
+  '暂无用户': 'No users',
+  '用户添加成功': 'User added',
+  '用户已删除': 'User deleted',
+  '密码重置成功': 'Password reset',
+  '请输入用户名': 'Please enter username',
+  '请输入密码': 'Please enter password',
+  '请输入用户 ': 'Please enter user ',
+  ' 的新密码：': '\'s new password:',
+  '确定删除用户 ': 'Are you sure you want to delete user ',
   'Cline2API 管理后台': 'Cline2API Admin',
+  '请输入管理员账号与密码登录': 'Enter your admin account and password to sign in.',
   '该后台已启用访问密码，请输入密码登录': 'Password protection is enabled. Enter the password to continue.',
   '登 录': 'Sign In',
   '即将恢复': 'recovering soon',
@@ -1230,6 +1349,7 @@ loadStats(); loadAccounts(); }
     if (el.dataset.tab === 'accounts') loadAccounts();
     if (el.dataset.tab === 'logs') loadRequestLogs(true);
     if (el.dataset.tab === 'settings') { loadKeys(); loadModels(); loadConfig(); loadOcConfig(); }
+    if (el.dataset.tab === 'users') loadUsers();
   });
 });
 
@@ -1243,6 +1363,7 @@ function switchTab(name) {
   if (name === 'accounts') loadAccounts();
   if (name === 'logs') loadRequestLogs(true);
   if (name === 'settings') { loadKeys(); loadModels(); loadOcConfig(); }
+  if (name === 'users') loadUsers();
 }
 
 // 导入子标签
@@ -1274,18 +1395,23 @@ function showLogin() {
   const ov = _('loginOverlay');
   if (ov && ov.style.display !== 'flex') {
     ov.style.display = 'flex';
-    setTimeout(() => _('loginPassword').focus(), 50);
+    setTimeout(() => {
+      const u = _('loginUsername');
+      if (u && !u.value) u.focus();
+      else if (_('loginPassword')) _('loginPassword').focus();
+    }, 50);
   }
 }
 
 async function submitLogin() {
+  const username = _('loginUsername') ? _('loginUsername').value.trim() : '';
   const pwd = _('loginPassword').value;
   if (!pwd) return;
   _('loginError').textContent = '';
   try {
     const res = await fetch(API + '/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: pwd })
+      body: JSON.stringify({ username: username || 'admin', password: pwd })
     });
     const data = await res.json();
     if (res.ok && data.success) {
@@ -1295,6 +1421,13 @@ async function submitLogin() {
       _('loginPassword').value = '';
     }
   } catch (e) { _('loginError').textContent = t('网络错误，请重试'); }
+}
+
+async function logoutAdmin() {
+  try {
+    await fetch(API + '/logout', { method: 'POST' });
+  } catch (e) {}
+  location.reload();
 }
 
 // 用系统默认浏览器打开外部链接（桌面 WebView 内导航不会跳外部浏览器，需走后端）
@@ -1329,14 +1462,41 @@ async function loadStats() {
 }
 
 // ========== 账号管理 ==========
+function subscriptionLabel(value) { return value === 'free' ? 'Free' : value === 'pass' ? 'Pass' : t('待确认'); }
+function subscriptionControl(a) {
+  return '<span class="subscription-control"><label><input type="checkbox" data-account-id="' + esc(a.accountId) + '" aria-label="' + esc(t('批量设置订阅') + ' ' + a.email) + '"></label> ' +
+    '<select data-account-id="' + esc(a.accountId) + '" aria-label="' + esc(t('订阅') + ' ' + a.email) + '" onchange="updateSubscription(this)">' +
+    ['unknown','free','pass'].map(s => '<option value="' + s + '"' + ((a.subscription || 'unknown') === s ? ' selected' : '') + '>' + subscriptionLabel(s) + '</option>').join('') + '</select></span>';
+}
+async function updateSubscription(el) {
+  el.disabled = true;
+  try { await api('POST', '/accounts/subscription', {accountIds:[el.dataset.accountId], subscription:el.value}); toast(t('订阅已更新'), 'success'); }
+  catch(e) { toast(e.message, 'error'); }
+  finally { el.disabled = false; loadAccounts(); loadStats(); }
+}
+async function updateSubscriptions(btn) {
+  const ids = [...new Set([...document.querySelectorAll('input[data-account-id]:checked')].map(el => el.dataset.accountId))];
+  if (!ids.length) { toast(t('请选择账号'), 'error'); return; }
+  if (!confirm(t('确认更新这些账号的订阅？') + ' (' + ids.length + ')')) return;
+  btn.disabled = true;
+  try { await api('POST', '/accounts/subscription', {accountIds:ids, subscription:_('bulkSubscription').value}); toast(t('订阅已更新'), 'success'); loadAccounts(); loadStats(); }
+  catch(e) { toast(e.message, 'error'); }
+  finally { btn.disabled = false; }
+}
 async function loadAccounts() {
   try {
     const d = await api('GET', '/accounts');
-    const list = d.data.accounts;
+    const filter = _('accountGroupFilter').value;
+    const list = (d.data.accounts || []).filter(a => !filter || (a.subscription || 'unknown') === filter);
+    const stats = await api('GET', '/stats');
+    _('subscriptionSummary').innerHTML = '<div>' + t('分组统计（最近30天，最多5000条日志）') + '</div>' +
+      (stats.data.subscriptionGroups || []).map(g => '<div style="margin-top:12px"><strong>' + subscriptionLabel(g.subscription) + '</strong> · ' + g.accounts + ' ' + t('账号') + ' · ' + g.active + ' ' + t('活跃') + ' · ' + formatNumber(g.requests) + ' req · ' + formatTokenCount(g.totalTokens) + ' tok' +
+        '<div style="margin-top:4px;color:var(--text2)">' + t('输入') + ' ' + formatTokenCount(g.inputTokens) + ' · ' + t('输出') + ' ' + formatTokenCount(g.outputTokens) + ' · ' + t('缓存') + ' ' + formatTokenCount(g.cachedTokens) + '</div></div>').join('');
     const tbody = _('accountTableBody');
     const cards = _('accountCards');
     if (!list || list.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="10" class="empty">👋 还没有账号 — 前往 <a href="#" onclick="switchTab(\'import\')" style="color:var(--accent);cursor:pointer">' + t('导入账号') + '</a> ' + t('添加你的第一个 Cline 账号') + '</td></tr>';
+	  if (filter) { tbody.innerHTML = '<tr><td colspan="11" class="empty">' + t('当前分组暂无账号') + '</td></tr>'; cards.innerHTML = '<div class="empty">' + t('当前分组暂无账号') + '</div>'; return; }
+      tbody.innerHTML = '<tr><td colspan="11" class="empty">👋 还没有账号 — 前往 <a href="#" onclick="switchTab(\'import\')" style="color:var(--accent);cursor:pointer">' + t('导入账号') + '</a> ' + t('添加你的第一个 Cline 账号') + '</td></tr>';
       cards.innerHTML = '<div class="empty">👋 还没有账号 — 前往 <a href="#" onclick="switchTab(\'import\')" style="color:var(--accent)">' + t('导入账号') + '</a> ' + t('添加你的第一个 Cline 账号') + '</div>';
       return;
     }
@@ -1371,11 +1531,11 @@ async function loadAccounts() {
       ).join('');
       const totalCooling = Object.keys(cools).length;
       const title = '<tr style="background:var(--surface2)">' +
-        '<td colspan="10" style="padding:8px 32px;color:var(--text2);font-size:12px;font-weight:600">' +
+        '<td colspan="11" style="padding:8px 32px;color:var(--text2);font-size:12px;font-weight:600">' +
           t('按模型统计（仅免费模型）') + (totalCooling ? ' · <span style="color:var(--yellow)">⏳ ' + totalCooling + ' ' + t('模型冷却中') + '</span>' : '') +
         '</td></tr>';
       if (!rows && !extraCools) {
-        return title + '<tr style="background:var(--surface2)"><td colspan="10" style="padding:6px 32px;color:var(--text3);font-size:12px">' + t('暂无数据') + '</td></tr>';
+        return title + '<tr style="background:var(--surface2)"><td colspan="11" style="padding:6px 32px;color:var(--text3);font-size:12px">' + t('暂无数据') + '</td></tr>';
       }
       return title + rows + extraCools;
     };
@@ -1389,6 +1549,7 @@ async function loadAccounts() {
       const expander = '<button class="btn btn-sm btn-icon" onclick="toggleModelRow(\'' + a.accountId + '\', this)" title="' + t('展开') + '">▸</button>';
       return '<tr>' +
         '<td>' + esc(a.email) + '</td>' +
+        '<td>' + subscriptionControl(a) + '</td>' +
         '<td>' + statusBadge + '</td>' +
         '<td>' + formatNumber(a.usageCount) + '</td>' +
         '<td>' + formatTokenCount(a.promptTokens) + '</td>' +
@@ -1402,7 +1563,7 @@ async function loadAccounts() {
           '<button class="btn btn-sm" onclick="resetAccount(\'' + a.accountId + '\')" title="重置">↻</button> ' +
           '<button class="btn btn-sm btn-danger" onclick="deleteAccount(\'' + a.accountId + '\')" title="删除">✕</button>' +
         '</td></tr>' +
-        '<tr id="modelRow-' + a.accountId + '" style="display:none"><td colspan="10" style="padding:0">' +
+        '<tr id="modelRow-' + a.accountId + '" style="display:none"><td colspan="11" style="padding:0">' +
           '<table class="model-subtable" style="width:100%">' + modelStatsRow(a) + '</table></td></tr>';
     }).join('');
     cards.innerHTML = list.map(a => {
@@ -1433,7 +1594,7 @@ async function loadAccounts() {
           (coolingCount ? ' · <span style="color:var(--yellow)">⏳ ' + coolingCount + '</span>' : '') + '</div>' + items + '</div>';
       return '<article class="account-card">' +
         '<div class="account-card-header"><span class="account-email">' + esc(a.email) + '</span>' +
-        cardStatus + '</div>' +
+        cardStatus + '</div><div style="margin:8px 0">' + subscriptionControl(a) + '</div>' +
         '<div class="account-metrics">' +
           '<div class="account-metric"><span class="account-metric-label">' + t('请求') + '</span><span class="account-metric-value">' + formatNumber(a.usageCount) + '</span></div>' +
           '<div class="account-metric"><span class="account-metric-label">' + t('总 Token') + '</span><span class="account-metric-value">' + formatTokenCount(a.totalTokens) + '</span></div>' +
@@ -1541,7 +1702,7 @@ async function startOAuth() {
   _('oauthResult').style.display = 'none';
   _('oauthStatus').textContent = t('正在连接 WorkOS...');
   try {
-    const d = await api('POST', '/oauth/start');
+    const d = await api('POST', '/oauth/start', {subscription:_('importSubscription').value});
     const s = d.data;
     _('oauthStatus').textContent = t('请在浏览器中打开链接并输入代码');
     const u = _('oauthUrl');
@@ -1558,7 +1719,7 @@ async function startOAuth() {
           btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>' + t('开始 OAuth 登录');
           if (r.data.success) {
             _('oauthProgress').style.display = 'none';
-            _('oauthResult').innerHTML = '<div style="color:var(--green);font-weight:600">✓ ' + t('账号添加成功: ')+ esc(r.data.email) + '</div>';
+            _('oauthResult').innerHTML = '<div style="color:var(--green);font-weight:600">✓ ' + t('账号添加成功: ')+ esc(r.data.email) + ' · ' + subscriptionLabel(r.data.subscription) + '</div>';
             _('oauthResult').style.display = 'block';
             loadAccounts(); loadStats();
             toast(t('账号添加成功！'), 'success');
@@ -1583,7 +1744,7 @@ async function addByToken() {
   if (!token) { toast(t('请输入 refreshToken'), 'error'); return; }
   const email = _('tokenEmail').value.trim();
   try {
-    const d = await api('POST', '/accounts/add', { refreshToken: token, email: email || undefined });
+    const d = await api('POST', '/accounts/add', { refreshToken: token, email: email || undefined, subscription:_('importSubscription').value });
     toast(t('账号添加成功: ') + (d.data.email || ''), 'success');
     _('tokenInput').value = '';
     _('tokenEmail').value = '';
@@ -1635,7 +1796,7 @@ async function batchImport() {
   if (!raw) { toast(t('请输入账号数据'), 'error'); return; }
   const tokens = parseImportData(raw);
   try {
-    const d = await api('POST', '/batch-import', { tokens });
+    const d = await api('POST', '/batch-import', { tokens: tokens.map(a => ({...a, subscription:a.subscription || _('importSubscription').value})) });
     toast(d.message || t('导入完成'), 'success');
     _('batchInput').value = '';
     loadAccounts(); loadStats();
@@ -1648,7 +1809,7 @@ async function handleFileImport(event) {
   const text = await file.text();
   const tokens = parseImportData(text);
   try {
-    const d = await api('POST', '/batch-import', { tokens });
+    const d = await api('POST', '/batch-import', { tokens: tokens.map(a => ({...a, subscription:a.subscription || _('importSubscription').value})) });
     toast(d.message || t('导入了 ') + tokens.length + t(' 个账号'), 'success');
     loadAccounts(); loadStats();
   } catch (e) { toast(t('导入失败: ') + e.message, 'error'); }
@@ -1659,24 +1820,27 @@ async function handleFileImport(event) {
 async function loadKeys() {
   try {
     const d = await api('GET', '/keys');
-    const keys = d.data.keys;
+    const keys = d.data.keyRecords;
     const el = _('keysList');
     if (!keys || keys.length === 0) {
       el.innerHTML = '<div class="empty-state"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></div>' + t('暂无 API 密钥') + '</div>';
       return;
     }
-    el.innerHTML = keys.map(k =>
+    el.innerHTML = keys.map(record => { const k = record.key; return (
       '<div class="flex" style="margin-bottom:8px">' +
         '<span class="key-display" style="flex:1" onclick="copyText(\'' + k + '\')" title="点击复制">' + esc(k) + '</span>' +
+        '<select data-key="' + esc(k) + '" aria-label="' + esc(t('订阅分组')) + '" onchange="updateKeyGroups(this)">' +
+        (!record.allowedGroups.length ? '<option value="" selected>' + t('未授权') + '</option>' : '') +
+        ['free','pass','free,pass'].map(s => '<option value="' + s + '"' + (record.allowedGroups.join(',') === s ? ' selected' : '') + '>' + (s === 'free,pass' ? 'Free + Pass' : s) + '</option>').join('') + '</select>' +
         '<button class="btn btn-sm btn-danger" onclick="deleteKey(\'' + k + '\')">✕</button>' +
-      '</div>'
+      '</div>'); }
     ).join('');
   } catch (e) { _('keysList').innerHTML = '<div class="empty">' + t('加载失败') + '</div>'; }
 }
 
 async function generateKey() {
   try {
-    const d = await api('POST', '/keys/generate');
+    const d = await api('POST', '/keys/generate', {allowedGroups:_('newKeyGroups').value.split(',')});
     const key = d.data.key;
     _('keyGenResult').innerHTML =
       '<div style="background:var(--green-soft);border:1px solid var(--green);border-radius:var(--radius-sm);padding:14px">' +
@@ -1689,6 +1853,12 @@ async function generateKey() {
   } catch (e) { toast(t('生成失败: ') + e.message, 'error'); }
 }
 
+async function updateKeyGroups(el) {
+  el.disabled = true;
+  try { await api('POST', '/keys/groups', {key:el.dataset.key, allowedGroups:el.value.split(',')}); toast(t('分组权限已更新'), 'success'); }
+  catch(e) { toast(e.message, 'error'); }
+  finally { el.disabled = false; loadKeys(); }
+}
 async function deleteKey(key) {
   if (!confirm(t('确定删除此密钥？'))) return;
   try {
@@ -2155,6 +2325,76 @@ async function loadRequestLogs(reset) {
       cards.insertAdjacentHTML('beforeend', items.map(renderCard).join(''));
     }
   } catch (e) { toast(t('加载日志失败: ') + e.message, 'error'); }
+}
+
+// ========== 用户管理 ==========
+async function loadUsers() {
+  try {
+    const d = await api('GET', '/users');
+    const users = (d.data && d.data.users) || [];
+    const tbody = _('userTableBody');
+    if (!tbody) return;
+    if (users.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty">' + t('暂无用户') + '</td></tr>';
+      return;
+    }
+    tbody.innerHTML = users.map(u => {
+      const created = u.createdAt ? new Date(u.createdAt).toLocaleString(LC()) : '-';
+      const roleTag = u.role === 'admin'
+        ? '<span class="model-tag pass">' + t('管理员') + '</span>'
+        : '<span class="model-tag free">' + t('用户') + '</span>';
+      return '<tr>' +
+        '<td style="font-weight:600">' + esc(u.username) + '</td>' +
+        '<td>' + roleTag + '</td>' +
+        '<td class="mono" style="font-size:12px">' + created + '</td>' +
+        '<td>' +
+          '<button class="btn btn-sm" style="margin-right:6px" onclick="resetUserPassword(\'' + esc(u.id) + '\', \'' + esc(u.username) + '\')">' + t('重置密码') + '</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="deleteUser(\'' + esc(u.id) + '\', \'' + esc(u.username) + '\')">' + t('删除') + '</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  } catch (e) {
+    toast(t('加载用户列表失败: ') + e.message, 'error');
+  }
+}
+
+async function addUser() {
+  const username = _('newUsername').value.trim();
+  const password = _('newPassword').value;
+  const role = _('newUserRole').value;
+  if (!username) { toast(t('请输入用户名'), 'error'); return; }
+  if (!password) { toast(t('请输入密码'), 'error'); return; }
+  try {
+    await api('POST', '/users/add', { username, password, role });
+    _('newUsername').value = '';
+    _('newPassword').value = '';
+    toast(t('用户添加成功'), 'success');
+    await loadUsers();
+  } catch (e) {
+    toast(t('添加失败: ') + e.message, 'error');
+  }
+}
+
+async function resetUserPassword(id, username) {
+  const newPass = prompt(t('请输入用户 ') + username + t(' 的新密码：'));
+  if (!newPass) return;
+  try {
+    await api('POST', '/users/reset-password', { id, password: newPass });
+    toast(t('密码重置成功'), 'success');
+  } catch (e) {
+    toast(t('重置失败: ') + e.message, 'error');
+  }
+}
+
+async function deleteUser(id, username) {
+  if (!confirm(t('确定删除用户 ') + username + '？')) return;
+  try {
+    await api('POST', '/users/delete', { id });
+    toast(t('用户已删除'), 'success');
+    await loadUsers();
+  } catch (e) {
+    toast(t('删除失败: ') + e.message, 'error');
+  }
 }
 
 // ========== 初始化 ==========

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -12,10 +13,10 @@ import (
 )
 
 const (
-	workosClientID       = "client_01K3A541FN8TA3EPPHTD2325AR"
-	workosDeviceAuthURL  = "https://api.workos.com/user_management/authorize/device"
+	workosClientID        = "client_01K3A541FN8TA3EPPHTD2325AR"
+	workosDeviceAuthURL   = "https://api.workos.com/user_management/authorize/device"
 	workosAuthenticateURL = "https://api.workos.com/user_management/authenticate"
-	clineAPIBase         = "https://api.cline.bot/api/v1"
+	clineAPIBase          = "https://api.cline.bot/api/v1"
 )
 
 type credentials struct {
@@ -47,6 +48,16 @@ type clineAuthResp struct {
 			Email string `json:"email"`
 		} `json:"userInfo"`
 	} `json:"data"`
+}
+
+// clinePlanResp is intentionally kept loose. The plan endpoint has added
+// fields over time, but the subscription tier is represented by the plan
+// name/type or the cline_pass entitlement. Keeping the response raw lets us
+// remain compatible with both old and new Cline API responses.
+type clinePlanResp struct {
+	Success bool            `json:"success"`
+	Data    json.RawMessage `json:"data"`
+	Error   string          `json:"error"`
 }
 
 type clineRefreshResp struct {
@@ -231,6 +242,116 @@ func refreshClineToken(refreshToken string) (*clineRefreshResp, error) {
 	return &c, nil
 }
 
+// subscriptionFromJSON detects the Cline subscription tier from a plan (or
+// user-info) response. It deliberately only examines plan/subscription-like
+// fields so an unrelated string such as a model name cannot grant Pass access.
+func subscriptionFromJSON(raw []byte) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return "free"
+	}
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return subscriptionUnknown
+	}
+	return subscriptionFromValue(value, false)
+}
+
+func subscriptionFromValue(value any, planContext bool) string {
+	pass, free := false, false
+	var visit func(any, string, bool)
+	visit = func(v any, key string, context bool) {
+		normalizedKey := strings.ToLower(strings.NewReplacer("_", "", "-", "", " ", "").Replace(key))
+		field := normalizedKey == "subscription" || normalizedKey == "subscriptiontype" ||
+			normalizedKey == "plan" || normalizedKey == "plantype" || normalizedKey == "tier" ||
+			normalizedKey == "accounttype" || normalizedKey == "product"
+		passField := strings.Contains(normalizedKey, "clinepass") || strings.Contains(normalizedKey, "ispass") ||
+			strings.Contains(normalizedKey, "ispro")
+		switch x := v.(type) {
+		case string:
+			if field || context || passField {
+				s := strings.ToLower(strings.TrimSpace(x))
+				if strings.Contains(s, "clinepass") || strings.Contains(s, "cline_pass") ||
+					strings.Contains(s, "pass") || strings.Contains(s, "pro") || strings.Contains(s, "paid") ||
+					strings.Contains(s, "subscriber") {
+					pass = true
+				} else if strings.Contains(s, "free") || strings.Contains(s, "basic") || strings.Contains(s, "community") {
+					free = true
+				}
+			}
+		case bool:
+			if x && (passField || (context && normalizedKey == "enabled")) {
+				pass = true
+			}
+		case map[string]any:
+			childContext := context || normalizedKey == "plan" || normalizedKey == "subscription" ||
+				normalizedKey == "entitlements" || normalizedKey == "clinepass" || normalizedKey == "clinepassentitlement"
+			for childKey, child := range x {
+				visit(child, childKey, childContext)
+			}
+		case []any:
+			for _, child := range x {
+				visit(child, key, context)
+			}
+		}
+	}
+	visit(value, "", planContext)
+	if pass {
+		return "pass"
+	}
+	if free {
+		return "free"
+	}
+	return subscriptionUnknown
+}
+
+// detectClineSubscription queries the authoritative Cline plan endpoint. A
+// successful response with data:null means the account has no active
+// ClinePass plan, which is the Free tier. Network/API failures stay unknown so
+// we never silently grant a group when Cline cannot confirm it.
+func detectClineSubscription(accessToken string) string {
+	if accessToken == "" {
+		return subscriptionUnknown
+	}
+	token := accessToken
+	if !strings.HasPrefix(strings.ToLower(token), "workos:") {
+		token = "workos:" + token
+	}
+	req, err := http.NewRequest("GET", clineAPIBase+"/users/me/plan", nil)
+	if err != nil {
+		return subscriptionUnknown
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/json")
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return subscriptionUnknown
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return subscriptionUnknown
+	}
+	var envelope clinePlanResp
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil || !envelope.Success {
+		return subscriptionUnknown
+	}
+	if len(envelope.Data) == 0 || string(envelope.Data) == "null" {
+		return "free"
+	}
+	return subscriptionFromJSON(envelope.Data)
+}
+
+// requestedSubscription gives an explicit admin choice precedence while
+// allowing the default “待确认” value to be filled from Cline's plan API.
+func requestedSubscription(requested, detected string) string {
+	if value := subscriptionValue(requested); value != subscriptionUnknown {
+		return value
+	}
+	if value := subscriptionValue(detected); value != subscriptionUnknown {
+		return value
+	}
+	return subscriptionUnknown
+}
+
 func getToken() (string, error) {
 	if cachedToken != "" && time.Now().UnixMilli() < cachedExpiry {
 		return cachedToken, nil
@@ -325,6 +446,9 @@ func doLogin() error {
 	if cline.Data.RefreshToken == "" {
 		return fmt.Errorf("cline registration missing refresh token")
 	}
+	// Keep the CLI login behavior consistent with admin OAuth: the plan API is
+	// the source of truth for whether this account is Free or ClinePass.
+	detectedSubscription := detectClineSubscription(cline.Data.AccessToken)
 
 	saveCredentials(cline.Data.RefreshToken)
 	cachedToken = "workos:" + cline.Data.AccessToken
@@ -335,7 +459,7 @@ func doLogin() error {
 	if cline.Data.UserInfo != nil && cline.Data.UserInfo.Email != "" {
 		email = cline.Data.UserInfo.Email
 	}
-	fmt.Printf("  Login successful! Account: %s\n", email)
+	fmt.Printf("  Login successful! Account: %s (subscription: %s)\n", email, detectedSubscription)
 	return nil
 }
 
