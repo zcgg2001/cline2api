@@ -2,7 +2,7 @@
 
 # Cline2API
 
-Cline API reverse proxy · multi-account rotation · dual protocol · desktop app
+Cline API reverse proxy · multi-account rotation · three protocols · desktop app
 
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -16,13 +16,18 @@ Cline API reverse proxy · multi-account rotation · dual protocol · desktop ap
 
 ## Introduction
 
-Cline2API is a reverse proxy for the Cline API with multi-account rotation, dual protocol support (OpenAI + Anthropic Messages API), API key authentication, and a bilingual admin panel (English/Chinese, auto-detected from your browser language with a manual toggle in the sidebar). A single-file cross-platform desktop app (Windows / macOS / Linux) is included — just download and run.
+Cline2API is a reverse proxy with multi-account rotation, OpenAI Chat Completions / Responses and Anthropic Messages APIs, API key authentication, and a bilingual admin panel. A single-file cross-platform desktop app is included.
+
+Current version: **v1.2.0**. See [release notes](releases/v1.2.0.md) for billing, account administration, persistence and the refreshed admin login experience.
 
 **Built with**: Go (backend + proxy + desktop shell), HTML/CSS/JS (embedded admin frontend).
 
 ## Features
 
-- **Dual protocol**: serves both `/v1/chat/completions` (OpenAI) and `/v1/messages` (Anthropic Messages API)
+- **Three protocols**: `/v1/chat/completions`, `/v1/responses`, and `/v1/messages`
+- **Admin roles**: administrators manage configuration; ordinary users can view accounts, stats, models and logs, and change their own password
+- **Account management**: status overview, email/ID search, filters, sorting, cards/table, pagination and details; selected-account testing, refresh, grouping, export and deletion with per-account results
+- **Official quota and billing**: administrators can sync ClinePass 5-hour/weekly/monthly usage and reset times, personal wallet balance, actual charges in the latest 20 usage records, and listed subscription price; unavailable data stays unknown
 - **Multi-account rotation**: load-balances across Cline accounts (`round_robin` / `fill` / `random`)
 - **Bilingual admin panel**: `/admin/` manages accounts, API keys, models, headers and proxy settings; auto-follows your browser language, manually switchable in the sidebar
 - **Dynamic model sync**: fetches the official Cline recommended-models API on startup (free / cline-pass / recommended); a popup notifies you when the model list changes, and you can also click "Sync Models from Cline" in the panel anytime
@@ -58,15 +63,20 @@ go build -o cline-proxy .
 
 Then open http://127.0.0.1:3457/admin/ for the admin panel.
 
+For a new local installation, sign in with `admin / admin` and change the initial password before using the panel. New passwords must be 8–72 bytes. Initial credentials work only over loopback. For containers or remote servers, set `CLINE_ADMIN_PASSWORD` before the first start; existing non-default passwords are preserved.
+
 ### Option 3: Docker
 
 ```bash
+export CLINE_ADMIN_PASSWORD='replace-with-your-own-strong-password'
 docker compose up -d      # build and start
 docker compose logs -f    # view logs
 docker compose down       # stop
 ```
 
-The container listens on `0.0.0.0:3457` (`-p 3457:3457` maps it externally). The admin panel has no auth by default — do **not** expose the port to the public internet.
+The container listens on `0.0.0.0:3457`; Compose publishes only `127.0.0.1:3457` on the host. All proxy configuration and logs persist in `./data/`. Sign in as `admin` with the configured password.
+
+Before upgrading from v1.0, stop the old container, back up and copy `.cline-accounts.json`, `.cline-request-logs.json`, `.cline-config.json`, `.cline-zen.json`, and optional `override.md` into `./data/`. Mount the directory rather than individual files so atomic replacement works.
 
 ## Usage Guide
 
@@ -86,7 +96,7 @@ API Key:  <key generated in the admin panel>
 Model:    <model from the synced list, e.g. stealth/ox-alpha>
 ```
 
-Both OpenAI and Anthropic API formats are supported.
+OpenAI Chat Completions / Responses and Anthropic Messages are supported.
 
 ### 3. Account export/import (device migration)
 
@@ -103,9 +113,9 @@ Create `override.md` next to the executable; its content replaces the system pro
 By default the proxy listens on `127.0.0.1` (local only). The **Access Settings** section of the admin panel lets you:
 
 - **Choose a listen address**: `127.0.0.1` (local) / `0.0.0.0` (all interfaces) / detected local IPs; saving restarts the listener immediately
-- **Admin password**: none by default; once set, `/admin/` requires a password (session cookie, 24h); save an empty field to clear it
+- **Admin password**: authentication is required. Changing your password revokes all your sessions; passwords cannot be cleared. Sessions last up to 24 hours. Administrators can manage other users
 
-You can also set the listen address on the command line (priority: env var > panel setting > `127.0.0.1`):
+You can also set the listen address on the command line (priority: `-host` > env var > panel setting > `127.0.0.1`):
 
 ```bash
 # CLI: listen on all interfaces (LAN devices can reach it via your local IP)
@@ -118,7 +128,7 @@ You can also set the listen address on the command line (priority: env var > pan
 CLINE_PROXY_HOST=0.0.0.0 ./cline-proxy
 ```
 
-> ⚠️ **Security warning**: `/admin/` has no auth (unless you set a password). Listening on a non-loopback address (e.g. `0.0.0.0`) exposes it to your LAN. Only do this on a trusted network, or restrict port `3457` in your firewall.
+> Set the initial password and create an API key before exposing the server. Proxy endpoints still allow anonymous access when no keys exist. Restrict access with a firewall and use HTTPS for public deployments.
 
 ## Build
 
@@ -144,8 +154,8 @@ sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
 Pushing a `v*` tag triggers GitHub Actions to build and release all three platforms:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.2.0
+git push origin v1.2.0
 ```
 
 ### Release zip (recommended for cloud-drive sharing)
@@ -159,15 +169,19 @@ Browsers are less likely to block a zip than a bare exe:
 
 ## Data Files
 
-Files are looked up in this order: executable directory → working directory → `~/.cline2api/`.
+Set `CLINE_PROXY_DATA_DIR` to pin the proxy data directory. Otherwise files are looked up in this order: executable directory → working directory → `~/.cline2api/`.
 
 | File | Purpose |
 |------|---------|
 | `.cline-accounts.json` | Account pool, API keys, custom models and default model |
 | `.cline-request-logs.json` | Request logs |
+| `.cline-accounts.json.bak` | Backup before startup migration; contains sensitive credentials |
+| `.cline-config.json` / `.cline-zen.json` | Proxy / OpenCode configuration |
 | `override.md` | System Prompt override (optional) |
 
 > ⚠️ The account file contains plaintext refreshTokens — treat it as sensitive. Never ship it in a release package or commit it to Git.
+
+Invalid account files stop startup and are preserved for recovery. Passwords use bcrypt; legacy hashes are upgraded after a successful login when the password fits bcrypt's 72-byte limit.
 
 ## Available Models
 

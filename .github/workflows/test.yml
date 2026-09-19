@@ -1,0 +1,30 @@
+name: Test
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test -mod=readonly -race -shuffle=on -timeout 120s ./...
+      - run: go vet -mod=readonly ./...
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test web/accounts_model.test.cjs
+      - run: node --test web/account_billing.test.cjs
+      - run: node --check web/accounts.js
+      - run: node --check web/account_billing.js
+      - run: go build -mod=readonly -o cline-proxy .

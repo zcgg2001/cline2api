@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -221,11 +222,13 @@ func registerWithCline(workosAccess, workosRefresh string) (*clineAuthResp, erro
 }
 
 func refreshClineToken(refreshToken string) (*clineRefreshResp, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
 	body := map[string]string{
 		"refreshToken": refreshToken,
 		"grantType":    "refresh_token",
 	}
-	resp, err := httpPostJSON(clineAPIBase+"/auth/refresh", body)
+	resp, err := httpPostJSONContext(ctx, clineAPIBase+"/auth/refresh", body)
 	if err != nil {
 		return nil, fmt.Errorf("cline refresh: %w", err)
 	}

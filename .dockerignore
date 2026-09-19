@@ -1,0 +1,13 @@
+# The CLI build needs only Go sources, dependency metadata and the embedded version.
+# Keep local credentials, data, binaries and unrelated files out of build layers.
+**
+!go.mod
+!go.sum
+!*.go
+!VERSION
+!web/
+!web/accounts.js
+!web/account_billing.js
+!web/accounts_model.js
+!web/accounts.css
+!web/accounts.html

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -153,7 +154,7 @@ func restartListener(host string, port int) error {
 		for _, ip := range detectLocalIPs() {
 			fmt.Printf("  http://%s:%d (LAN)\n", ip, port)
 		}
-		fmt.Println("  !!! 监听非本机地址，管理后台无鉴权，请确认网络环境安全")
+		fmt.Println("  Listening beyond loopback: configure admin credentials and API keys before sharing access.")
 	}
 	fmt.Println(strings.Repeat("=", 58))
 	return server.ListenAndServe()
@@ -223,7 +224,19 @@ type chatRequest struct {
 }
 
 func startProxy(host string, port int) error {
-	p := loadPool()
+	p, err := loadPoolWithError()
+	if err != nil {
+		return err
+	}
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("cannot listen on %s: %w", addr, err)
+	}
+	defer listener.Close()
 	loadRequestLogs()
 	activeCount := 0
 	for _, a := range p.Accounts {
@@ -248,8 +261,6 @@ func startProxy(host string, port int) error {
 		startZenModelsRefresher()
 	}
 	startCompactCleanup()
-
-	freePort(port)
 
 	mux := http.NewServeMux()
 
@@ -510,10 +521,6 @@ func startProxy(host string, port int) error {
 	mux.HandleFunc("/v1/responses", responsesHandler)
 	mux.HandleFunc("/responses", responsesHandler)
 
-	if host == "" {
-		host = "127.0.0.1"
-	}
-	addr := fmt.Sprintf("%s:%d", host, port)
 	listenHost = host
 	listenPort = port
 	serverMux = mux
@@ -538,9 +545,16 @@ func startProxy(host string, port int) error {
 		for _, ip := range detectLocalIPs() {
 			fmt.Printf("  http://%s:%d (LAN)\n", ip, port)
 		}
-		fmt.Println("  !!! 监听非本机地址，管理后台无鉴权，请确认网络环境安全")
+		fmt.Println("  Listening beyond loopback: configure admin credentials and API keys before sharing access.")
 	}
-	fmt.Println("  API Key: any value")
+	poolMu.Lock()
+	keyCount := len(p.Keys)
+	poolMu.Unlock()
+	if keyCount == 0 {
+		fmt.Println("  API Key: not configured (anonymous proxy access)")
+	} else {
+		fmt.Printf("  API Key: required (%d configured)\n", keyCount)
+	}
 	fmt.Printf("  Model:   %s\n", getDefaultModel())
 	fmt.Printf("  Accounts: %d total, %d active\n", len(loadPool().Accounts), activeCount)
 	if zc := getZenConfig(); zc.Enabled {
@@ -550,7 +564,7 @@ func startProxy(host string, port int) error {
 	}
 	fmt.Println(strings.Repeat("=", 58))
 
-	return server.ListenAndServe()
+	return server.Serve(listener)
 }
 
 func corsHandler(h http.HandlerFunc) http.HandlerFunc {
@@ -1321,11 +1335,9 @@ type anthropicMsg struct {
 }
 
 type toolAccumulator struct {
-	index   int
-	id      string
-	name    string
-	args    string
-	emitted bool
+	id   string
+	name string
+	args string
 }
 
 type anthropicReq struct {
@@ -1345,7 +1357,7 @@ type anthropicReq struct {
 }
 
 func loadOverrideContent() string {
-	data, err := os.ReadFile("override.md")
+	data, err := os.ReadFile(resolveDataPath("override.md"))
 	if err != nil {
 		log.Printf("  override.md not found: %v", err)
 		return ""
@@ -1680,7 +1692,6 @@ func handleAnthropicMessages(w http.ResponseWriter, r *http.Request) {
 			finalizeRequestLog(&reqLog, usage, time.Time{}, reqLog.StartedAt, true, "")
 			anthropicResp := openAIToAnthropic(out2)
 			if tc, ok := getNested(out2, "choices", 0, "message", "tool_calls").([]any); ok && len(tc) > 0 {
-				anthropicResp["content"] = []any{}
 				anthropicResp["stop_reason"] = "tool_use"
 			}
 			writeJSON(w, http.StatusOK, anthropicResp)
@@ -1750,7 +1761,6 @@ func handleAnthropicMessages(w http.ResponseWriter, r *http.Request) {
 		anthropicResp := openAIToAnthropic(out)
 
 		if tc, ok := getNested(out, "choices", 0, "message", "tool_calls").([]any); ok && len(tc) > 0 {
-			anthropicResp["content"] = []any{}
 			anthropicResp["stop_reason"] = "tool_use"
 		}
 
@@ -1770,10 +1780,16 @@ func handleAnthropicStream(w http.ResponseWriter, upstream *http.Response, acc *
 		return
 	}
 
+	var streamErr error
 	emit := func(event string, data any) {
+		if streamErr != nil {
+			return
+		}
 		d, _ := json.Marshal(data)
-		w.Write([]byte(fmt.Sprintf("event: %s\n", event)))
-		w.Write([]byte(fmt.Sprintf("data: %s\n\n", string(d))))
+		if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, d); err != nil {
+			streamErr = err
+			return
+		}
 		flusher.Flush()
 	}
 
@@ -1791,41 +1807,47 @@ func handleAnthropicStream(w http.ResponseWriter, upstream *http.Response, acc *
 		},
 	})
 
-	textIndex := new(int)
-	*textIndex = -1
+	textIndex := 0
 	hasText := false
 	pendingTools := map[int]*toolAccumulator{}
 
-	emitToolBlock := func(acc *toolAccumulator) {
-		acc.emitted = true
-		var argsObj any
-		json.Unmarshal([]byte(acc.args), &argsObj)
-		if argsObj == nil {
-			argsObj = map[string]any{}
-		}
+	emitToolBlock := func(acc *toolAccumulator, index int) {
 		emit("content_block_start", map[string]any{
 			"type":  "content_block_start",
-			"index": acc.index,
+			"index": index,
 			"content_block": map[string]any{
 				"type":  "tool_use",
 				"id":    acc.id,
 				"name":  acc.name,
-				"input": argsObj,
+				"input": map[string]any{},
 			},
+		})
+		emit("content_block_delta", map[string]any{
+			"type": "content_block_delta", "index": index,
+			"delta": map[string]any{"type": "input_json_delta", "partial_json": acc.args},
 		})
 		emit("content_block_stop", map[string]any{
 			"type":  "content_block_stop",
-			"index": acc.index,
+			"index": index,
 		})
 	}
 
 	reader := bufio.NewReader(upstream.Body)
 	var latestUsage tokenUsage
 	var firstOutputAt time.Time
+	finished := false
 
 	for {
+		if streamErr != nil {
+			break
+		}
 		line, err := reader.ReadString('\n')
-		if err != nil {
+		if err != nil && (err != io.EOF || line == "") {
+			if err != io.EOF {
+				streamErr = err
+			} else if !finished {
+				streamErr = io.ErrUnexpectedEOF
+			}
 			break
 		}
 		line = strings.TrimRight(line, "\r\n")
@@ -1833,13 +1855,18 @@ func handleAnthropicStream(w http.ResponseWriter, upstream *http.Response, acc *
 			continue
 		}
 		payload := strings.TrimSpace(line[5:])
-		if payload == "" || payload == "[DONE]" {
+		if payload == "[DONE]" {
+			finished = true
+			break
+		}
+		if payload == "" {
 			continue
 		}
 
 		var obj map[string]any
 		if err := json.Unmarshal([]byte(payload), &obj); err != nil {
-			continue
+			streamErr = fmt.Errorf("invalid upstream event: %w", err)
+			break
 		}
 		if data, ok := obj["data"]; ok {
 			if d, ok := data.(map[string]any); ok {
@@ -1857,7 +1884,7 @@ func handleAnthropicStream(w http.ResponseWriter, upstream *http.Response, acc *
 		if errPayload, ok := obj["error"]; ok {
 			errBody, _ := json.Marshal(errPayload)
 			log.Printf("  upstream SSE error: %s", string(errBody))
-			emit("error", map[string]any{"type": "error", "error": errPayload})
+			streamErr = fmt.Errorf("upstream SSE error: %s", errBody)
 			break
 		}
 
@@ -1879,10 +1906,9 @@ func handleAnthropicStream(w http.ResponseWriter, upstream *http.Response, acc *
 		if c, ok := delta["content"].(string); ok && c != "" {
 			if !hasText {
 				hasText = true
-				*textIndex++
 				emit("content_block_start", map[string]any{
 					"type":  "content_block_start",
-					"index": *textIndex,
+					"index": textIndex,
 					"content_block": map[string]any{
 						"type": "text",
 						"text": "",
@@ -1891,7 +1917,7 @@ func handleAnthropicStream(w http.ResponseWriter, upstream *http.Response, acc *
 			}
 			emit("content_block_delta", map[string]any{
 				"type":  "content_block_delta",
-				"index": *textIndex,
+				"index": textIndex,
 				"delta": map[string]any{
 					"type": "text_delta",
 					"text": sanitizeContent(c),
@@ -1912,7 +1938,7 @@ func handleAnthropicStream(w http.ResponseWriter, upstream *http.Response, acc *
 				}
 				acc, exists := pendingTools[idx]
 				if !exists {
-					acc = &toolAccumulator{index: idx}
+					acc = &toolAccumulator{}
 					pendingTools[idx] = acc
 				}
 				if id, ok := tcMap["id"].(string); ok && id != "" {
@@ -1926,14 +1952,12 @@ func handleAnthropicStream(w http.ResponseWriter, upstream *http.Response, acc *
 						acc.args += args
 					}
 				}
-				if acc.id != "" && acc.name != "" && acc.args != "" && !acc.emitted {
-					emitToolBlock(acc)
-				}
 			}
 		}
 
 		// Finish reason
 		if fr, ok := choice["finish_reason"].(string); ok && fr != "" {
+			finished = true
 			switch fr {
 			case "length":
 				stopReason = "max_tokens"
@@ -1942,20 +1966,48 @@ func handleAnthropicStream(w http.ResponseWriter, upstream *http.Response, acc *
 			}
 		}
 	}
+	// Buffer tool arguments until complete; validate before emitting any tool
+	// blocks. OpenAI may interleave multiple calls and split JSON at any byte.
+	indexes := make([]int, 0, len(pendingTools))
+	for idx, tool := range pendingTools {
+		indexes = append(indexes, idx)
+		if tool.args == "" {
+			tool.args = "{}"
+		}
+		var args map[string]any
+		if err := json.Unmarshal([]byte(tool.args), &args); err != nil || args == nil || tool.id == "" || tool.name == "" {
+			if streamErr == nil {
+				streamErr = fmt.Errorf("incomplete tool call at index %d", idx)
+			}
+		}
+	}
+	sort.Ints(indexes)
+	if streamErr != nil {
+		// Emit an error instead of a normal stop, preserving the original failure.
+		errMsg := streamErr.Error()
+		streamErr = nil
+		emit("error", map[string]any{"type": "error", "error": map[string]any{"type": "api_error", "message": errMsg}})
+		recordTokenUsage(acc, reqLog.Model, latestUsage)
+		finalizeRequestLog(reqLog, latestUsage, firstOutputAt, reqLog.StartedAt, false, errMsg)
+		return
+	}
 
 	// Stop text block if active
 	if hasText {
 		emit("content_block_stop", map[string]any{
 			"type":  "content_block_stop",
-			"index": *textIndex,
+			"index": textIndex,
 		})
 	}
 
-	// Emit any remaining un-emitted tool blocks
-	for _, acc := range pendingTools {
-		if !acc.emitted {
-			emitToolBlock(acc)
-		}
+	// Text and tools have distinct, monotonically increasing content indexes.
+	nextIndex := 0
+	if hasText {
+		nextIndex = 1
+	}
+	for _, idx := range indexes {
+		emitToolBlock(pendingTools[idx], nextIndex)
+		nextIndex++
 	}
 
 	emit("message_delta", map[string]any{
@@ -1968,10 +2020,13 @@ func handleAnthropicStream(w http.ResponseWriter, upstream *http.Response, acc *
 			"output_tokens": latestUsage.Completion,
 		},
 	})
-	recordTokenUsage(acc, reqLog.Model, latestUsage)
-	finalizeRequestLog(reqLog, latestUsage, firstOutputAt, reqLog.StartedAt, true, "")
-
 	emit("message_stop", map[string]any{"type": "message_stop"})
+	recordTokenUsage(acc, reqLog.Model, latestUsage)
+	errMsg := ""
+	if streamErr != nil {
+		errMsg = streamErr.Error()
+	}
+	finalizeRequestLog(reqLog, latestUsage, firstOutputAt, reqLog.StartedAt, streamErr == nil, errMsg)
 	log.Printf("  anthropic stream done: hasText=%v tools=%d reason=%s", hasText, len(pendingTools), stopReason)
 }
 
@@ -2068,19 +2123,4 @@ func getNested(obj map[string]any, keys ...any) any {
 		}
 	}
 	return current
-}
-
-func freePort(port int) {
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
-	if err != nil {
-		return // port is free
-	}
-	conn.Close()
-
-	// Try to kill the process using the port
-	cmd := execCommand("powershell", "-Command",
-		fmt.Sprintf(`$p=Get-NetTCPConnection -LocalPort %d -ErrorAction SilentlyContinue; if($p){Stop-Process -Id $p.OwningProcess -Force}`, port))
-	_ = cmd.Run()
-	time.Sleep(500 * time.Millisecond)
 }

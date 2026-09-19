@@ -1,4 +1,8 @@
 .cline-accounts.json
+.cline-accounts.json.bak
+.cline-write-*
+data/
+.env
 .cline-credentials.json
 .cline-request-logs.json
 .cline-zen.json
@@ -8,6 +12,10 @@ cline-proxy.exe
 cline-proxy.exe~
 cline-go-proxy.exe
 .zcode/
+
+# Local macOS metadata and ad-hoc build output
+.DS_Store
+cline-go-proxy
 
 # 参考项目（opencode 集成参考，非本仓库代码）
 opencode-ref/

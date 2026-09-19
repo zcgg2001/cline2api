@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -25,6 +27,9 @@ func init() {
 // 找到则用该路径（兼容旧版本在项目根目录存储的文件）；
 // 都找不到则回退到 exe 目录（首次运行会在该位置创建）。
 func resolveDataPath(filename string) string {
+	if dir := os.Getenv("CLINE_PROXY_DATA_DIR"); dir != "" {
+		return filepath.Join(dir, filename)
+	}
 	// 1. exe 所在目录
 	if exe, err := os.Executable(); err == nil {
 		p := filepath.Join(filepath.Dir(exe), filename)
@@ -55,19 +60,33 @@ func resolveDataPath(filename string) string {
 }
 
 func loadPool() *AccountPool {
+	p, err := loadPoolWithError()
+	if err != nil {
+		// Entry points validate before serving. Fail closed for callers that bypass them.
+		panic(err)
+	}
+	return p
+}
+
+func loadPoolWithError() (*AccountPool, error) {
 	poolMu.Lock()
 	defer poolMu.Unlock()
 
 	if pool != nil {
-		return pool
+		return pool, nil
 	}
 
 	data, err := os.ReadFile(poolPath)
-	var p AccountPool
+	p := &AccountPool{}
 	if err == nil {
 		if err := json.Unmarshal(data, &p); err != nil {
-			p = AccountPool{}
+			return nil, fmt.Errorf("cannot parse account file %s (original preserved): %w", poolPath, err)
 		}
+		if p == nil {
+			return nil, fmt.Errorf("account file %s must contain a JSON object (original preserved)", poolPath)
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("cannot read account file %s: %w", poolPath, err)
 	}
 
 	if p.Accounts == nil {
@@ -95,37 +114,77 @@ func loadPool() *AccountPool {
 				},
 			}
 		} else {
-			salt := "4f1c9d2e7a3b8e0f"
+			salt := randomHex(16)
+			if salt == "" {
+				return nil, fmt.Errorf("cannot generate initial password salt")
+			}
 			p.AdminUsers = []AdminUser{
 				{
-					ID:           "u_admin",
-					Username:     "admin",
-					PasswordHash: hashAdminPassword(salt, "admin"),
-					PasswordSalt: salt,
-					Role:         "admin",
-					CreatedAt:    time.Now(),
+					ID:                 "u_admin",
+					Username:           "admin",
+					PasswordHash:       hashAdminPassword(salt, "admin"),
+					PasswordSalt:       salt,
+					Role:               "admin",
+					MustChangePassword: true,
+					CreatedAt:          time.Now(),
 				},
 			}
 		}
 	}
-	migrateGroups(&p)
-	pool = &p
-	savePoolLocked()
-	return pool
+	for i := range p.AdminUsers {
+		u := &p.AdminUsers[i]
+		if u.Role == "" {
+			u.Role = "admin"
+		}
+		if u.Role != "admin" {
+			u.Role = "user"
+		}
+		if strings.EqualFold(u.Username, "admin") && verifyUserPassword(*u, "admin") {
+			u.MustChangePassword = true
+			if password := os.Getenv("CLINE_ADMIN_PASSWORD"); password != "" {
+				if !validNewPassword(password) {
+					return nil, fmt.Errorf("CLINE_ADMIN_PASSWORD must be 8–72 bytes")
+				}
+				hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+				if err != nil {
+					return nil, err
+				}
+				u.PasswordHash, u.PasswordSalt, u.MustChangePassword = string(hash), "", false
+			}
+		}
+	}
+	// The legacy password fields are migration inputs only; never a second login credential.
+	p.AdminPasswordHash, p.AdminPasswordSalt = "", ""
+	migrateGroups(p)
+	if len(data) > 0 {
+		if err := atomicWritePrivateFile(poolPath+".bak", data); err != nil {
+			return nil, fmt.Errorf("cannot back up account file: %w", err)
+		}
+	}
+	pool = p
+	if err := savePoolLocked(); err != nil {
+		pool = nil
+		return nil, err
+	}
+	return pool, nil
 }
 
-func savePool() {
+func savePool() error {
 	poolMu.Lock()
 	defer poolMu.Unlock()
-	savePoolLocked()
+	return savePoolLocked()
 }
 
 // 调用方已持有 poolMu；串行化JSON快照和文件写入，避免分组修改与调度落盘竞态。
-func savePoolLocked() {
-	data, _ := json.MarshalIndent(pool, "", "  ")
-	if err := os.WriteFile(poolPath, data, 0600); err != nil {
+func savePoolLocked() error {
+	data, err := json.MarshalIndent(pool, "", "  ")
+	if err == nil {
+		err = atomicWritePrivateFile(poolPath, data)
+	}
+	if err != nil {
 		log.Printf("Failed to save accounts: %v", err)
 	}
+	return err
 }
 
 func setAccountStatus(acc *Account, status string, until time.Time) {
@@ -174,6 +233,14 @@ func getAccountByID(accountID string) *Account {
 }
 
 func refreshAccountToken(acc *Account) error {
+	acc.refreshMu.Lock()
+	defer acc.refreshMu.Unlock()
+	return refreshAccountTokenLocked(acc, true)
+}
+
+// Billing reads may rotate credentials but must not change scheduling status.
+// The caller holds refreshMu; persist rotated tokens even if the caller disconnects.
+func refreshAccountTokenLocked(acc *Account, updateStatus bool) error {
 	poolMu.Lock()
 	refreshToken := acc.RefreshToken
 	poolMu.Unlock()
@@ -181,18 +248,24 @@ func refreshAccountToken(acc *Account) error {
 	poolMu.Lock()
 	defer poolMu.Unlock()
 	if err != nil {
-		acc.Status = "expired"
-		savePoolLocked()
+		if updateStatus {
+			acc.Status = "expired"
+			savePoolLocked()
+		}
 		return fmt.Errorf("token refresh failed: %w", err)
+	}
+	if resp.Data.AccessToken == "" {
+		return fmt.Errorf("token refresh returned no access token")
 	}
 	acc.AccessToken = "workos:" + resp.Data.AccessToken
 	if resp.Data.RefreshToken != "" {
 		acc.RefreshToken = resp.Data.RefreshToken
 	}
 	acc.ExpiresAt = parseExpiry(resp.Data.ExpiresAt) - 60000
-	acc.Status = "active"
-	savePoolLocked()
-	return nil
+	if updateStatus {
+		acc.Status = "active"
+	}
+	return savePoolLocked()
 }
 
 func pickAccount() *Account {
@@ -311,6 +384,12 @@ func pickAccountLocked(p *AccountPool) *Account {
 }
 
 func ensureAccountToken(acc *Account) (string, error) {
+	return ensureAccountTokenForPurpose(acc, true)
+}
+
+func ensureAccountTokenForPurpose(acc *Account, updateStatus bool) (string, error) {
+	acc.refreshMu.Lock()
+	defer acc.refreshMu.Unlock()
 	poolMu.Lock()
 	if acc.AccessToken != "" && time.Now().UnixMilli() < acc.ExpiresAt {
 		token := acc.AccessToken
@@ -319,7 +398,7 @@ func ensureAccountToken(acc *Account) (string, error) {
 	}
 	poolMu.Unlock()
 
-	if err := refreshAccountToken(acc); err != nil {
+	if err := refreshAccountTokenLocked(acc, updateStatus); err != nil {
 		return "", err
 	}
 

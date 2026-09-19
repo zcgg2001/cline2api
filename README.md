@@ -2,7 +2,7 @@
 
 # Cline2API
 
-Cline API 反向代理 · 多账号轮询 · 双协议兼容 · 桌面端
+Cline API 反向代理 · 多账号轮询 · 三协议兼容 · 桌面端
 
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -16,13 +16,18 @@ Cline API 反向代理 · 多账号轮询 · 双协议兼容 · 桌面端
 
 ## 简介
 
-Cline2API 是 Cline API 的反向代理服务，支持多账号轮询、OpenAI 和 Anthropic Messages API 双协议、API Key 鉴权，内置中英文管理后台（自动跟随浏览器语言，可手动切换）。提供跨平台桌面端单文件应用（Windows / macOS / Linux），双击即用。
+Cline2API 是 Cline API 的反向代理服务，支持多账号轮询、OpenAI Chat Completions / Responses 和 Anthropic Messages 三种协议、API Key 鉴权，内置中英文管理后台。提供跨平台桌面端单文件应用（Windows / macOS / Linux）。
+
+当前版本 **v1.2.0**：新增账号计费与用量面板、批量账号管理、原子持久化，以及焕新的后台登录界面。详见 [v1.2.0 发布说明](releases/v1.2.0.md) 和 [v1.1 改进记录](cline2api_v1.1.md)。
 
 **开发语言**：Go（后端 + 代理 + 桌面壳），HTML/CSS/JS（管理后台前端，内嵌于二进制）。
 
 ## 功能
 
-- **双协议兼容**：同时支持 `/v1/chat/completions`（OpenAI）和 `/v1/messages`（Anthropic Messages API）
+- **三协议兼容**：支持 `/v1/chat/completions`、`/v1/responses` 和 `/v1/messages`
+- **后台角色权限**：管理员管理配置；普通用户只读查看账号、统计、模型和日志，并可修改自己的密码
+- **账号管理**：状态概览、邮箱/ID 搜索、组合筛选、卡片/列表与分页、详情侧栏；批量测试、刷新凭据、分组、导出和删除，逐项显示执行结果
+- **官方额度与费用**：管理员可同步 ClinePass 的 5 小时/周/月已用百分比和重置时间，查看个人余额、最近 20 条账单实际扣费及订阅标价；未订阅和查询失败不会显示为 0% 额度
 - **多账号轮询**：自动在多个 Cline 账号间切换负载（`round_robin` / `fill` / `random` 策略）
 - **中英文管理后台**：浏览器访问 `/admin/` 管理账号、API Key、模型配置、请求头、代理设置；自动跟随浏览器语言，侧栏可手动切换
 - **动态模型同步**：启动时自动拉取 Cline 官方推荐模型接口（免费/订阅模型），模型变化时弹窗提示，也可在后台手动「从 Cline 同步模型」
@@ -59,15 +64,20 @@ go build -o cline-proxy .
 
 启动后访问 http://127.0.0.1:3457/admin/ 进入管理后台。
 
+首次使用 `admin / admin` 从本机登录，必须先修改初始密码才能使用后台。新密码为 8–72 字节；已有用户和密码兼容迁移。服务器或容器部署可在首次启动前设置 `CLINE_ADMIN_PASSWORD`，直接初始化管理员密码。
+
 ### 方式三：Docker
 
 ```bash
+export CLINE_ADMIN_PASSWORD='请替换为你自己的强密码'
 docker compose up -d      # 构建并启动
 docker compose logs -f     # 查看日志
 docker compose down        # 停止
 ```
 
-容器内已配置监听 `0.0.0.0:3457`（`-p 3457:3457` 映射对外可达），管理后台同样无鉴权，请勿将端口暴露到公网。
+容器内监听 `0.0.0.0:3457`，Compose 默认仅映射宿主机 `127.0.0.1:3457`。配置、账号和日志统一保存在 `./data/`。容器内登录使用用户名 `admin` 和上面设置的密码。
+
+从 v1.0 升级 Docker 前，停止旧容器并备份配置，将原有 `.cline-accounts.json`、`.cline-request-logs.json`、`.cline-config.json`、`.cline-zen.json` 和可选 `override.md` 复制到 `./data/` 后再启动。不要继续单独绑定挂载账号文件，原子替换需要挂载其所在目录。
 
 ## 使用指南
 
@@ -87,7 +97,7 @@ API Key:  <在管理后台生成的 Key>
 Model:    cline-free/glm-5.2
 ```
 
-兼容 OpenAI 和 Anthropic 两种 API 格式。
+支持 OpenAI Chat Completions / Responses 和 Anthropic Messages API。
 
 ### 3. 账号导出/导入（跨设备迁移）
 
@@ -104,9 +114,9 @@ Model:    cline-free/glm-5.2
 默认只监听 `127.0.0.1`（仅本机可访问）。管理后台 **访问设置** 区可：
 
 - **监听地址下拉选择**：`127.0.0.1`（仅本机）/ `0.0.0.0`（所有网卡）/ 本机检测到的 IP，保存后自动重启监听立即生效，选择会自动检测并展示本机 IP 列表
-- **管理后台密码**：默认无密码；设置后访问 `/admin/` 需输入密码登录（会话 Cookie，24 小时有效），留空保存可清除密码
+- **管理后台密码**：必须登录；点击「修改密码」更新当前用户凭据并撤销该用户全部会话。密码不能清空。会话最长 24 小时有效，管理员可管理其他用户
 
-命令行也可指定监听地址（优先级：环境变量 > 后台设置 > `127.0.0.1`）：
+命令行也可指定监听地址（优先级：`-host` > 环境变量 > 后台设置 > `127.0.0.1`）：
 
 ```bash
 # CLI：监听所有网卡（局域网设备可通过本机 IP 访问）
@@ -119,8 +129,7 @@ Model:    cline-free/glm-5.2
 CLINE_PROXY_HOST=0.0.0.0 ./cline-proxy
 ```
 
-> ⚠️ **安全警告**：管理后台 `/admin/` 无鉴权（除非设置了访问密码），监听非回环地址（如 `0.0.0.0`）会将其暴露给局域网。
-> 请确认网络环境可信，或配合防火墙仅放行需要的 IP 访问 `3457` 端口。
+> 对外监听前完成初始密码设置，并创建 API Key；未配置任何 Key 时，代理接口仍兼容匿名调用。请通过防火墙限制访问，公网部署应使用 HTTPS 反向代理。
 
 ## 构建
 
@@ -146,8 +155,8 @@ sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
 推送 `v*` 标签触发 GitHub Actions 三平台自动构建并发布 Release：
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.2.0
+git push origin v1.2.0
 ```
 
 ### 发布 zip（网盘分发推荐）
@@ -163,6 +172,7 @@ git push origin v1.0.0
 
 程序按以下顺序查找数据文件（找到即使用）：
 
+0. 若设置 `CLINE_PROXY_DATA_DIR`，下表文件直接使用该目录
 1. 可执行文件所在目录
 2. 当前工作目录
 3. 用户主目录 `~/.cline2api/`
@@ -171,9 +181,13 @@ git push origin v1.0.0
 |------|------|
 | `.cline-accounts.json` | 账号池、API Key、自定义模型与默认模型 |
 | `.cline-request-logs.json` | 请求日志 |
+| `.cline-accounts.json.bak` | 成功加载并迁移前的账号文件备份，同样含敏感凭据 |
+| `.cline-config.json` / `.cline-zen.json` | 代理与 OpenCode 配置 |
 | `override.md` | System Prompt 覆盖（可选）|
 
 > ⚠️ 账号文件含明文 refreshToken，属于敏感凭据，不要放入发布包或提交到 Git。
+
+账号文件解析失败时程序会报错退出并保留原文件；修复文件或从备份恢复后再启动。密码使用 bcrypt 保存，旧密码哈希在成功登录后自动迁移；旧密码超过 72 字节时保留兼容验证，需要主动改密。
 
 ## 可用模型
 

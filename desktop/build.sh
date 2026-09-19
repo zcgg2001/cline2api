@@ -17,8 +17,8 @@ OS=$(go env GOOS)
 ARCH=$(go env GOARCH)
 OUT="$ROOT/desktop/build/$OS-$ARCH"
 NAME="cline-proxy-desktop"
-# 版本号：优先环境变量 VERSION，否则取最近 git tag（如 v1.3.0），再退回 dev
-VERSION=${VERSION:-$(git describe --tags --always 2>/dev/null || echo "dev")}
+# 版本号：环境变量 VERSION 优先，否则使用源码 VERSION 文件。
+VERSION=${VERSION:-$(tr -d '\r\n' < "$ROOT/VERSION")}
 LDFLAGS="-s -w -X main.appVersion=$VERSION"
 
 if [ "$OS" = "windows" ]; then

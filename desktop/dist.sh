@@ -22,7 +22,7 @@ cat > "$DIST/ccline2api/使用说明.txt" <<'EOF'
 Cline2API 桌面版（cline-proxy-desktop.exe）
 
 1. 双击 exe 启动，自动打开管理界面 http://127.0.0.1:3457/admin/
-2. 首次使用需在管理界面添加 Cline 账号（OAuth 登录）并生成 API Key
+2. 首次使用以 admin / admin 登录并设置新密码，再添加 Cline 账号并生成 API Key
 3. 客户端（Cline CLI 等）将 API 地址指向本机 3457 端口即可
 
 若 Windows SmartScreen 提示"Windows 已保护你的电脑"：

@@ -1,23 +1,27 @@
 package main
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 type Account struct {
-	Subscription     string    `json:"subscription"` // unknown / free / pass；旧账号待确认，OAuth 可自动识别
-	AccountID        string    `json:"accountId"`
-	Email            string    `json:"email"`
-	RefreshToken     string    `json:"refreshToken"`
-	AccessToken      string    `json:"-"`
-	ExpiresAt        int64     `json:"-"`
-	Status           string    `json:"status"` // active, cooldown, expired
-	CooldownUntil    time.Time `json:"cooldownUntil,omitempty"`
-	LastUsed         time.Time `json:"lastUsed"`
-	UsageCount       int64     `json:"usageCount"`
-	PromptTokens     int64     `json:"promptTokens"`
-	CompletionTokens int64     `json:"completionTokens"`
-	TotalTokens      int64     `json:"totalTokens"`
-	CachedTokens     int64     `json:"cachedTokens"`
-	CreatedAt        time.Time `json:"createdAt"`
+	refreshMu        sync.Mutex // Serializes credential rotation across proxy and billing requests.
+	Subscription     string     `json:"subscription"` // unknown / free / pass；旧账号待确认，OAuth 可自动识别
+	AccountID        string     `json:"accountId"`
+	Email            string     `json:"email"`
+	RefreshToken     string     `json:"refreshToken"`
+	AccessToken      string     `json:"-"`
+	ExpiresAt        int64      `json:"-"`
+	Status           string     `json:"status"` // active, cooldown, expired
+	CooldownUntil    time.Time  `json:"cooldownUntil,omitempty"`
+	LastUsed         time.Time  `json:"lastUsed"`
+	UsageCount       int64      `json:"usageCount"`
+	PromptTokens     int64      `json:"promptTokens"`
+	CompletionTokens int64      `json:"completionTokens"`
+	TotalTokens      int64      `json:"totalTokens"`
+	CachedTokens     int64      `json:"cachedTokens"`
+	CreatedAt        time.Time  `json:"createdAt"`
 	// ModelStats 按模型细分的用量统计（仅记录 free 模型）
 	ModelStats map[string]*ModelStat `json:"modelStats,omitempty"`
 	// ModelCooldowns 模型级冷却：modelID → 恢复时间（429 时记录，只暂停该模型）
@@ -49,12 +53,13 @@ type ModelStat struct {
 }
 
 type AdminUser struct {
-	ID           string    `json:"id"`
-	Username     string    `json:"username"`
-	PasswordHash string    `json:"passwordHash"`
-	PasswordSalt string    `json:"passwordSalt,omitempty"`
-	Role         string    `json:"role,omitempty"` // admin / user
-	CreatedAt    time.Time `json:"createdAt"`
+	ID                 string    `json:"id"`
+	Username           string    `json:"username"`
+	PasswordHash       string    `json:"passwordHash"`
+	PasswordSalt       string    `json:"passwordSalt,omitempty"`
+	Role               string    `json:"role,omitempty"` // admin / user
+	CreatedAt          time.Time `json:"createdAt"`
+	MustChangePassword bool      `json:"mustChangePassword,omitempty"`
 }
 
 type AccountPool struct {

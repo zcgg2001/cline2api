@@ -1,0 +1,52 @@
+<div id="tab-accounts" class="tab-panel" style="display:none">
+  <div class="page-header ac-page-header">
+    <div><div class="large-title">账号管理</div><div class="large-subtitle">查看可用状态，管理分组与账号用量</div></div>
+    <div class="ac-actions">
+      <span id="acUpdated" class="ac-muted" aria-live="polite"></span>
+      <button class="btn" id="acReload" onclick="loadAccounts()">刷新列表</button>
+      <button class="btn" id="acRefreshBilling" data-admin-only>同步额度与费用</button>
+      <button class="btn btn-primary" data-admin-only onclick="switchTab('import')">添加账号</button>
+    </div>
+  </div>
+  <div id="acSummary" class="ac-summary" aria-label="账号概览"></div>
+  <div class="ac-toolbar">
+    <div class="ac-search"><label for="acSearch">搜索账号</label><input id="acSearch" type="search" placeholder="搜索邮箱或账号 ID" autocomplete="off"></div>
+    <div><label for="accountGroupFilter">订阅分组</label><select id="accountGroupFilter"><option value="">全部分组</option><option value="free">Free</option><option value="pass">Pass</option><option value="unknown">待确认</option></select></div>
+    <div><label for="acStatus">账号状态</label><select id="acStatus"><option value="">全部状态</option><option value="ready">可参与调度</option><option value="attention">需要处理</option><option value="cooldown">账号冷却</option><option value="model-cooldown">模型冷却</option><option value="expired">凭据过期</option></select></div>
+    <div><label for="acSort">排序方式</label><select id="acSort"><option value="recent">最近添加</option><option value="used">最近使用</option><option value="tokens">Token 用量</option><option value="requests">请求次数</option><option value="email">邮箱名称</option></select></div>
+    <button class="btn" id="acClearFilters">重置筛选</button>
+  </div>
+  <div class="ac-list-top">
+    <div class="ac-actions"><span id="acCount" class="ac-muted" aria-live="polite"></span><span class="ac-muted">·</span><span class="ac-muted">用量为累计统计</span></div>
+    <div class="ac-view" role="group" aria-label="显示方式"><button id="acViewCards" aria-pressed="true">卡片</button><button id="acViewTable" aria-pressed="false">列表</button></div>
+  </div>
+  <div class="ac-selection" data-admin-only>
+    <label class="ac-check"><input type="checkbox" id="acSelectPage"><span>选择本页</span></label>
+    <span id="acSelectedCount" aria-live="polite"></span>
+    <button class="ac-link" id="acSelectFiltered">选择全部筛选结果</button>
+    <button class="ac-link" id="acClearSelection">清除选择</button>
+    <div class="ac-actions ac-bulk-actions">
+      <label class="ac-sr-only" for="acBulkAction">批量操作</label>
+      <select id="acBulkAction"><option value="test">测试连接</option><option value="refresh">刷新凭据</option><option value="free">设为 Free</option><option value="pass">设为 Pass</option><option value="unknown">设为待确认</option><option value="export">导出所选</option><option value="delete">删除所选</option></select>
+      <button class="btn" id="acRunBulk" disabled>执行</button>
+    </div>
+  </div>
+  <div id="acLoadError" class="ac-notice" role="alert" hidden></div>
+  <div id="acOperation" class="ac-operation" hidden>
+    <div class="ac-actions"><strong id="acOperationTitle" aria-live="polite"></strong><button class="ac-link" id="acCancelOperation">停止后续任务</button></div>
+    <progress id="acProgress" value="0" max="1" aria-label="批量操作进度"></progress>
+    <div id="acOperationSummary" class="ac-muted" aria-live="polite"></div>
+    <details><summary>查看逐项结果</summary><div id="acOperationResults" class="ac-results"></div></details>
+  </div>
+  <div id="acContent" aria-busy="false"><div class="ac-empty">加载中...</div></div>
+  <div class="ac-pagination">
+    <div class="ac-actions"><label for="acPageSize">每页</label><select id="acPageSize"><option value="12">12</option><option value="24">24</option><option value="48">48</option></select><span id="acRange" class="ac-muted"></span></div>
+    <div class="ac-actions"><button class="btn" id="acPrev">上一页</button><span id="acPageLabel" aria-live="polite"></span><button class="btn" id="acNext">下一页</button></div>
+  </div>
+  <p class="ac-footnote">待确认账号不参与调度；模型冷却仅影响对应模型。批量操作最多选择 1000 个账号。</p>
+</div>
+
+<dialog id="acDetail" class="ac-detail" aria-labelledby="acDetailTitle">
+  <div class="ac-detail-head"><div><span class="ac-kicker">账号详情</span><h2 id="acDetailTitle"></h2></div><button class="btn btn-icon" id="acCloseDetail" aria-label="关闭详情">×</button></div>
+  <div id="acDetailBody"></div>
+</dialog>

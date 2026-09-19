@@ -14,6 +14,9 @@ import (
 )
 
 func main() {
+	if _, err := loadPoolWithError(); err != nil {
+		log.Fatal(err)
+	}
 	loginMode := flag.Bool("login", false, "Run OAuth device login flow and add account to pool")
 	captureMode := flag.Bool("capture", false, "Run interactive OAuth capture (records ALL traffic)")
 	port := flag.Int("port", 3457, "Proxy server port")
@@ -111,7 +114,7 @@ func buildAndStart(host string, port int) {
 		fmt.Println("Proxy is already running.")
 	} else {
 		fmt.Println("Starting proxy...")
-		startCmd := exec.Command(exe)
+		startCmd := exec.Command(exe, "-host", host, "-port", fmt.Sprint(port))
 		startCmd.Stdout = os.Stdout
 		startCmd.Stderr = os.Stderr
 		if err := startCmd.Start(); err != nil {

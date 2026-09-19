@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // In-memory OAuth login state for async browser login
@@ -48,7 +50,7 @@ func writeAPI(w http.ResponseWriter, status int, resp apiResponse) {
 
 // 管理后台登录会话（内存态，程序重启后需重新登录）。
 var (
-	adminSessions   = make(map[string]time.Time)
+	adminSessions   = make(map[string]adminSession)
 	adminSessionsMu sync.Mutex
 )
 
@@ -62,15 +64,18 @@ func registerAdminRoutes(mux *http.ServeMux) {
 	// 无需登录的接口
 	mux.HandleFunc("/admin/api/login", corsHandler(handleAdminLogin))
 	mux.HandleFunc("/admin/api/logout", corsHandler(handleAdminLogout))
-	// 其余 API 全部需要后台鉴权（设置了密码后）
+	// 所有后台 API 先认证，再按用户角色授权。
 	auth := func(h http.HandlerFunc) http.HandlerFunc {
 		return requireAdminAuth(corsHandler(h))
 	}
+	mux.HandleFunc("/admin/api/me", auth(handleAdminMe))
 	mux.HandleFunc("/admin/api/accounts", auth(handleAdminAccounts))
+	mux.HandleFunc("/admin/api/accounts/billing", auth(handleAccountBilling))
 	mux.HandleFunc("/admin/api/accounts/add", auth(handleAdminAccountAdd))
 	mux.HandleFunc("/admin/api/accounts/subscription", auth(handleAccountSubscription))
 	mux.HandleFunc("/admin/api/keys/groups", auth(handleKeyGroups))
 	mux.HandleFunc("/admin/api/accounts/delete", auth(handleAdminAccountDelete))
+	mux.HandleFunc("/admin/api/accounts/batch-delete", auth(handleAdminBatchDelete))
 	mux.HandleFunc("/admin/api/accounts/export", auth(handleExportAccounts))
 	mux.HandleFunc("/admin/api/oauth/start", auth(handleOAuthStart))
 	mux.HandleFunc("/admin/api/oauth/status", auth(handleOAuthStatus))
@@ -104,30 +109,45 @@ func registerAdminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/api/users/reset-password", auth(handleAdminResetPassword))
 }
 
-// requireAdminAuth 后台访问鉴权中间件：未设置密码且无用户直接放行，否则校验会话 cookie。
+// requireAdminAuth 校验会话、用户状态和路由权限；无用户时也不匿名放行。
 func requireAdminAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		p := loadPool()
-		if len(p.AdminUsers) == 0 && p.AdminPasswordHash == "" {
-			next(w, r)
-			return
-		}
 		c, err := r.Cookie(adminSessionCookie)
 		if err != nil {
 			writeAPI(w, http.StatusUnauthorized, apiResponse{Error: tAPI(r, "login_required")})
 			return
 		}
 		adminSessionsMu.Lock()
-		expiry, ok := adminSessions[c.Value]
-		if ok {
-			if time.Now().Before(expiry) {
-				adminSessionsMu.Unlock()
-				next(w, r)
-				return
-			}
+		session, ok := adminSessions[c.Value]
+		if ok && !time.Now().Before(session.ExpiresAt) {
 			delete(adminSessions, c.Value)
+			ok = false
 		}
 		adminSessionsMu.Unlock()
+		if ok {
+			poolMu.Lock()
+			var user AdminUser
+			for _, u := range p.AdminUsers {
+				if u.ID == session.UserID && u.PasswordHash == session.PasswordHash {
+					user = u
+					break
+				}
+			}
+			poolMu.Unlock()
+			if user.ID != "" {
+				if !authorizeAdminUser(r, user) {
+					key := "admin_required"
+					if user.MustChangePassword {
+						key = "password_change_required"
+					}
+					writeAPI(w, http.StatusForbidden, apiResponse{Error: tAPI(r, key)})
+					return
+				}
+				next(w, authenticatedRequest(r, user))
+				return
+			}
+		}
 		writeAPI(w, http.StatusUnauthorized, apiResponse{Error: tAPI(r, "session_expired")})
 	}
 }
@@ -136,39 +156,6 @@ func requireAdminAuth(next http.HandlerFunc) http.HandlerFunc {
 func hashAdminPassword(saltHex, password string) string {
 	sum := sha256.Sum256([]byte(saltHex + password))
 	return hex.EncodeToString(sum[:])
-}
-
-// setAdminPassword 设置/修改/清除后台密码（空 = 清除），并清空所有会话强制重新登录。
-func setAdminPassword(password string) {
-	p := loadPool()
-	poolMu.Lock()
-	if password == "" {
-		p.AdminPasswordHash = ""
-		p.AdminPasswordSalt = ""
-	} else {
-		salt := make([]byte, 16)
-		if _, err := rand.Read(salt); err != nil {
-			salt = []byte(time.Now().Format("20060102150405"))
-		}
-		p.AdminPasswordSalt = hex.EncodeToString(salt)
-		p.AdminPasswordHash = hashAdminPassword(p.AdminPasswordSalt, password)
-	}
-	poolMu.Unlock()
-	savePool()
-	adminSessionsMu.Lock()
-	adminSessions = make(map[string]time.Time)
-	adminSessionsMu.Unlock()
-}
-
-// verifyAdminPassword 校验后台密码（未设置密码时返回 false）。
-func verifyAdminPassword(password string) bool {
-	p := loadPool()
-	poolMu.Lock()
-	defer poolMu.Unlock()
-	if p.AdminPasswordHash == "" {
-		return false
-	}
-	return hashAdminPassword(p.AdminPasswordSalt, password) == p.AdminPasswordHash
 }
 
 // randomHex 生成 n 字节随机数的 hex 字符串。
@@ -201,53 +188,93 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := loadPool()
-	if len(p.AdminUsers) == 0 && p.AdminPasswordHash == "" {
-		writeAPI(w, http.StatusBadRequest, apiResponse{Error: tAPI(r, "password_not_enabled")})
-		return
+	targetUser := strings.TrimSpace(req.Username)
+	if targetUser == "" {
+		targetUser = "admin"
 	}
-
-	authed := false
-	if len(p.AdminUsers) > 0 {
-		targetUser := strings.TrimSpace(req.Username)
-		if targetUser == "" {
-			targetUser = "admin"
+	poolMu.Lock()
+	var user AdminUser
+	for _, u := range p.AdminUsers {
+		if strings.EqualFold(u.Username, targetUser) || (req.Username == "" && len(p.AdminUsers) == 1) {
+			user = u
+			break
 		}
-		poolMu.Lock()
-		for _, u := range p.AdminUsers {
-			if strings.EqualFold(u.Username, targetUser) || (req.Username == "" && len(p.AdminUsers) == 1) {
-				if hashAdminPassword(u.PasswordSalt, req.Password) == u.PasswordHash {
-					authed = true
-					break
-				}
-			}
-		}
-		poolMu.Unlock()
-	} else if p.AdminPasswordHash != "" {
-		authed = verifyAdminPassword(req.Password)
 	}
-
-	if !authed {
+	poolMu.Unlock()
+	if user.ID == "" || !verifyUserPassword(user, req.Password) {
 		time.Sleep(500 * time.Millisecond) // 防爆破
 		writeAPI(w, http.StatusUnauthorized, apiResponse{Error: tAPI(r, "wrong_password")})
 		return
 	}
+	if user.MustChangePassword && !localAdminRequest(r) {
+		writeAPI(w, http.StatusForbidden, apiResponse{Error: tAPI(r, "initial_password_local")})
+		return
+	}
+	// Upgrade legacy SHA-256 hashes after successful authentication. Existing
+	// passwords remain usable; new passwords use bcrypt with a random salt.
+	updated := user
+	if !strings.HasPrefix(user.PasswordHash, "$2") && len(req.Password) <= 72 {
+		hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			writeAPI(w, 500, apiResponse{Error: tAPI(r, "password_save_failed")})
+			return
+		}
+		updated.PasswordHash, updated.PasswordSalt = string(hash), ""
+	}
 	token := randomHex(32)
+	if token == "" {
+		writeAPI(w, 500, apiResponse{Error: tAPI(r, "session_create_failed")})
+		return
+	}
+	poolMu.Lock()
+	index := -1
+	for i, u := range p.AdminUsers {
+		if u.ID == user.ID && u.PasswordHash == user.PasswordHash {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		poolMu.Unlock()
+		writeAPI(w, http.StatusUnauthorized, apiResponse{Error: tAPI(r, "session_expired")})
+		return
+	}
+	if updated.PasswordHash != user.PasswordHash {
+		p.AdminUsers[index] = updated
+		if err := savePoolLocked(); err != nil {
+			p.AdminUsers[index] = user
+			poolMu.Unlock()
+			writeAPI(w, 500, apiResponse{Error: tAPI(r, "password_save_failed")})
+			return
+		}
+	}
 	adminSessionsMu.Lock()
-	adminSessions[token] = time.Now().Add(adminSessionTTL)
+	for key, session := range adminSessions {
+		if !time.Now().Before(session.ExpiresAt) {
+			delete(adminSessions, key)
+		}
+	}
+	adminSessions[token] = adminSession{UserID: updated.ID, PasswordHash: updated.PasswordHash, ExpiresAt: time.Now().Add(adminSessionTTL)}
 	adminSessionsMu.Unlock()
+	poolMu.Unlock()
 	http.SetCookie(w, &http.Cookie{
 		Name:     adminSessionCookie,
 		Value:    token,
 		Path:     "/admin",
 		HttpOnly: true,
+		Secure:   r.TLS != nil,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int(adminSessionTTL.Seconds()),
 	})
-	writeAPI(w, http.StatusOK, apiResponse{Success: true, Message: tAPI(r, "login_ok")})
+	writeAPI(w, http.StatusOK, apiResponse{Success: true, Data: publicAdminUser(updated), Message: tAPI(r, "login_ok")})
 }
 
 // POST /admin/api/logout
 func handleAdminLogout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPI(w, http.StatusMethodNotAllowed, apiResponse{Error: tAPI(r, "method_not_allowed")})
+		return
+	}
 	if c, err := r.Cookie(adminSessionCookie); err == nil {
 		adminSessionsMu.Lock()
 		delete(adminSessions, c.Value)
@@ -257,7 +284,7 @@ func handleAdminLogout(w http.ResponseWriter, r *http.Request) {
 	writeAPI(w, http.StatusOK, apiResponse{Success: true, Message: tAPI(r, "logout_ok")})
 }
 
-// POST /admin/api/password  body: {password}（空 = 清除密码，恢复无密码访问）
+// POST /admin/api/password body: {currentPassword, password}; updates the current user.
 func handleAdminPassword(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		writeAPI(w, http.StatusMethodNotAllowed, apiResponse{Error: tAPI(r, "method_not_allowed")})
@@ -270,18 +297,27 @@ func handleAdminPassword(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 	var req struct {
-		Password string `json:"password"`
+		CurrentPassword string `json:"currentPassword"`
+		Password        string `json:"password"`
 	}
 	if err := json.Unmarshal(body, &req); err != nil {
 		writeAPI(w, http.StatusBadRequest, apiResponse{Error: tAPI(r, "invalid_json")})
 		return
 	}
-	setAdminPassword(req.Password)
-	if req.Password == "" {
-		writeAPI(w, http.StatusOK, apiResponse{Success: true, Message: tAPI(r, "password_cleared")})
-	} else {
-		writeAPI(w, http.StatusOK, apiResponse{Success: true, Message: tAPI(r, "password_updated")})
+	user, ok := currentAdminUser(r)
+	if !ok || !verifyUserPassword(user, req.CurrentPassword) {
+		writeAPI(w, http.StatusBadRequest, apiResponse{Error: tAPI(r, "wrong_password")})
+		return
 	}
+	if !validNewPassword(req.Password) {
+		writeAPI(w, http.StatusBadRequest, apiResponse{Error: tAPI(r, "password_length")})
+		return
+	}
+	if err := updateUserPassword(user.ID, user.PasswordHash, req.Password); err != nil {
+		writeAPI(w, http.StatusInternalServerError, apiResponse{Error: tAPI(r, "password_save_failed")})
+		return
+	}
+	writeAPI(w, http.StatusOK, apiResponse{Success: true, Message: tAPI(r, "password_updated")})
 }
 
 // ====================== 用户管理 API ======================
@@ -339,6 +375,24 @@ func handleAdminUserAdd(w http.ResponseWriter, r *http.Request) {
 		writeAPI(w, http.StatusBadRequest, apiResponse{Error: tAPI(r, "user_required")})
 		return
 	}
+	if !validNewPassword(req.Password) {
+		writeAPI(w, http.StatusBadRequest, apiResponse{Error: tAPI(r, "password_length")})
+		return
+	}
+	role := req.Role
+	if role == "" {
+		role = "user"
+	}
+	if role != "admin" && role != "user" {
+		writeAPI(w, http.StatusBadRequest, apiResponse{Error: tAPI(r, "invalid_role")})
+		return
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	id := randomHex(16)
+	if err != nil || id == "" {
+		writeAPI(w, 500, apiResponse{Error: tAPI(r, "password_save_failed")})
+		return
+	}
 	p := loadPool()
 	poolMu.Lock()
 	for _, u := range p.AdminUsers {
@@ -348,25 +402,21 @@ func handleAdminUserAdd(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	salt := randomHex(16)
-	if salt == "" {
-		salt = fmt.Sprintf("%d", time.Now().UnixNano())
-	}
-	role := req.Role
-	if role == "" {
-		role = "admin"
-	}
 	newUser := AdminUser{
-		ID:           fmt.Sprintf("u_%d", time.Now().UnixMilli()),
+		ID:           "u_" + id,
 		Username:     req.Username,
-		PasswordSalt: salt,
-		PasswordHash: hashAdminPassword(salt, req.Password),
+		PasswordHash: string(hash),
 		Role:         role,
 		CreatedAt:    time.Now(),
 	}
 	p.AdminUsers = append(p.AdminUsers, newUser)
+	if err := savePoolLocked(); err != nil {
+		p.AdminUsers = p.AdminUsers[:len(p.AdminUsers)-1]
+		poolMu.Unlock()
+		writeAPI(w, 500, apiResponse{Error: tAPI(r, "password_save_failed")})
+		return
+	}
 	poolMu.Unlock()
-	savePool()
 	writeAPI(w, http.StatusOK, apiResponse{Success: true, Message: tAPI(r, "user_added")})
 }
 
@@ -391,15 +441,29 @@ func handleAdminUserDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	p := loadPool()
 	poolMu.Lock()
-	if len(p.AdminUsers) <= 1 {
-		poolMu.Unlock()
-		writeAPI(w, http.StatusBadRequest, apiResponse{Error: tAPI(r, "cannot_delete_last_user")})
-		return
+	adminCount := 0
+	for _, u := range p.AdminUsers {
+		if u.Role == "admin" {
+			adminCount++
+		}
 	}
 	found := false
 	for i, u := range p.AdminUsers {
 		if u.ID == req.ID {
-			p.AdminUsers = append(p.AdminUsers[:i], p.AdminUsers[i+1:]...)
+			if u.Role == "admin" && adminCount <= 1 {
+				poolMu.Unlock()
+				writeAPI(w, http.StatusBadRequest, apiResponse{Error: tAPI(r, "cannot_delete_last_user")})
+				return
+			}
+			old := p.AdminUsers
+			p.AdminUsers = append(append([]AdminUser{}, old[:i]...), old[i+1:]...)
+			if err := savePoolLocked(); err != nil {
+				p.AdminUsers = old
+				poolMu.Unlock()
+				writeAPI(w, 500, apiResponse{Error: tAPI(r, "password_save_failed")})
+				return
+			}
+			revokeUserSessions(u.ID)
 			found = true
 			break
 		}
@@ -409,7 +473,6 @@ func handleAdminUserDelete(w http.ResponseWriter, r *http.Request) {
 		writeAPI(w, http.StatusNotFound, apiResponse{Error: tAPI(r, "user_not_found")})
 		return
 	}
-	savePool()
 	writeAPI(w, http.StatusOK, apiResponse{Success: true, Message: tAPI(r, "user_deleted")})
 }
 
@@ -433,21 +496,15 @@ func handleAdminResetPassword(w http.ResponseWriter, r *http.Request) {
 		writeAPI(w, http.StatusBadRequest, apiResponse{Error: tAPI(r, "invalid_json")})
 		return
 	}
-	if req.Password == "" {
-		writeAPI(w, http.StatusBadRequest, apiResponse{Error: tAPI(r, "password_required")})
+	if !validNewPassword(req.Password) {
+		writeAPI(w, http.StatusBadRequest, apiResponse{Error: tAPI(r, "password_length")})
 		return
 	}
 	p := loadPool()
 	poolMu.Lock()
 	found := false
-	for i, u := range p.AdminUsers {
+	for _, u := range p.AdminUsers {
 		if u.ID == req.ID {
-			salt := randomHex(16)
-			if salt == "" {
-				salt = fmt.Sprintf("%d", time.Now().UnixNano())
-			}
-			p.AdminUsers[i].PasswordSalt = salt
-			p.AdminUsers[i].PasswordHash = hashAdminPassword(salt, req.Password)
 			found = true
 			break
 		}
@@ -457,11 +514,28 @@ func handleAdminResetPassword(w http.ResponseWriter, r *http.Request) {
 		writeAPI(w, http.StatusNotFound, apiResponse{Error: tAPI(r, "user_not_found")})
 		return
 	}
-	savePool()
+	if err := updateUserPassword(req.ID, "", req.Password); err != nil {
+		writeAPI(w, 500, apiResponse{Error: tAPI(r, "password_save_failed")})
+		return
+	}
 	writeAPI(w, http.StatusOK, apiResponse{Success: true, Message: tAPI(r, "password_updated")})
 }
 
 func adminStaticHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/admin/505-lab.png" {
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(loginWallpaper)
+		return
+	}
+	if r.URL.Path == "/admin/frieren-wallpaper.jpg" {
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(loginFrierenWallpaper)
+		return
+	}
 	if r.URL.Path == "/admin/" || r.URL.Path == "/admin" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
@@ -478,12 +552,16 @@ func handleAdminAccounts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	accounts := listAccounts()
+	p := loadPool()
+	poolMu.Lock()
+	poolIndex := p.CurrentIdx
+	poolMu.Unlock()
 	writeAPI(w, http.StatusOK, apiResponse{
 		Success: true,
 		Data: map[string]any{
 			"accounts":  accounts,
 			"total":     len(accounts),
-			"poolIndex": loadPool().CurrentIdx,
+			"poolIndex": poolIndex,
 		},
 	})
 }
@@ -899,23 +977,41 @@ func handleBatchImport(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GET /admin/api/accounts/export — 导出账号为批量导入兼容格式
+// GET exports all; POST exports only the explicitly selected accountIds.
 func handleExportAccounts(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
+	if r.Method != "GET" && r.Method != "POST" {
 		writeAPI(w, http.StatusMethodNotAllowed, apiResponse{Error: tAPI(r, "method_not_allowed")})
 		return
 	}
 
+	var ids []string
+	if r.Method == http.MethodPost {
+		var err error
+		ids, err = readAccountSelection(w, r)
+		if err != nil {
+			writeAPI(w, 400, apiResponse{Error: err.Error()})
+			return
+		}
+	}
 	p := loadPool()
 	poolMu.Lock()
 	defer poolMu.Unlock()
+	accounts := p.Accounts
+	if r.Method == http.MethodPost {
+		var err error
+		accounts, err = selectedAccountsLocked(p, ids)
+		if err != nil {
+			writeAPI(w, 404, apiResponse{Error: err.Error()})
+			return
+		}
+	}
 	type exportToken struct {
 		RefreshToken string `json:"refreshToken"`
 		Email        string `json:"email"`
 		Subscription string `json:"subscription"`
 	}
-	tokens := make([]exportToken, 0, len(p.Accounts))
-	for _, acc := range p.Accounts {
+	tokens := make([]exportToken, 0, len(accounts))
+	for _, acc := range accounts {
 		if acc.RefreshToken != "" {
 			tokens = append(tokens, exportToken{
 				Subscription: subscriptionValue(acc.Subscription),
@@ -926,6 +1022,7 @@ func handleExportAccounts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Disposition", `attachment; filename="cline-accounts-export.json"`)
 	json.NewEncoder(w).Encode(map[string]any{
 		"tokens":     tokens,
@@ -1038,7 +1135,10 @@ func handleAdminAccountTest(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		AccountID string `json:"accountId"`
 	}
-	_ = json.Unmarshal(body, &req)
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeAPI(w, http.StatusBadRequest, apiResponse{Error: tAPI(r, "invalid_json")})
+		return
+	}
 
 	p := loadPool()
 	var targets []*Account
@@ -1120,7 +1220,7 @@ func saveProxyConfigLocked() {
 	if err != nil {
 		return
 	}
-	if err := os.WriteFile(resolveDataPath(proxyConfigPath), data, 0600); err != nil {
+	if err := atomicWritePrivateFile(resolveDataPath(proxyConfigPath), data); err != nil {
 		log.Printf("proxy config save failed: %v", err)
 	}
 }
@@ -1128,13 +1228,22 @@ func saveProxyConfigLocked() {
 func getProxyConfig() *proxyConfigData {
 	proxyConfigMu.Lock()
 	defer proxyConfigMu.Unlock()
-	return proxyConfig
+	return cloneProxyConfig(proxyConfig)
+}
+
+func cloneProxyConfig(c *proxyConfigData) *proxyConfigData {
+	copy := *c
+	copy.Headers = make(map[string]string, len(c.Headers))
+	for k, v := range c.Headers {
+		copy.Headers[k] = v
+	}
+	return &copy
 }
 
 func setProxyConfig(c *proxyConfigData) {
 	proxyConfigMu.Lock()
 	defer proxyConfigMu.Unlock()
-	proxyConfig = c
+	proxyConfig = cloneProxyConfig(c)
 	saveProxyConfigLocked()
 }
 

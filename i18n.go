@@ -17,6 +17,15 @@ const (
 )
 
 var apiMessages = map[string]map[locale]string{
+	"billing_timeout":          {localeZH: "额度与费用查询超时，请稍后重试", localeEN: "Quota and billing lookup timed out; try again later"},
+	"account_save_failed":      {localeZH: "账号变更保存失败，请检查数据目录权限", localeEN: "Could not save account changes; check data directory permissions"},
+	"admin_required":           {localeZH: "此操作需要管理员权限", localeEN: "Administrator permission required"},
+	"password_change_required": {localeZH: "请先修改初始密码", localeEN: "Change the initial password first"},
+	"initial_password_local":   {localeZH: "初始密码只能从本机登录，请先在本机修改密码", localeEN: "Initial credentials are local-only; change the password locally first"},
+	"password_length":          {localeZH: "新密码长度必须为 8–72 字节，不能清空", localeEN: "New password must be 8–72 bytes and cannot be empty"},
+	"password_save_failed":     {localeZH: "保存用户信息失败，请检查数据目录权限", localeEN: "Could not save user information; check data directory permissions"},
+	"session_create_failed":    {localeZH: "无法创建安全会话，请重试", localeEN: "Could not create a secure session; try again"},
+	"invalid_role":             {localeZH: "角色必须为 admin 或 user", localeEN: "Role must be admin or user"},
 	"login_required": {
 		localeZH: "需要登录",
 		localeEN: "Login required",

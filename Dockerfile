@@ -1,10 +1,10 @@
 FROM golang:1.26-alpine AS builder
 
 WORKDIR /build
-COPY go.mod ./
-RUN go mod download 2>/dev/null || true
+COPY go.mod go.sum ./
+RUN go mod download
 COPY . .
-ARG APP_VERSION=dev
+ARG APP_VERSION
 RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.appVersion=${APP_VERSION}" -o cline-proxy .
 
 FROM alpine:3.21
@@ -19,6 +19,7 @@ VOLUME ["/app/data"]
 
 ENV PORT=3457
 ENV CLINE_PROXY_HOST=0.0.0.0
+ENV CLINE_PROXY_DATA_DIR=/app/data
 
 ENTRYPOINT ["/app/cline-proxy"]
 # 容器内必须监听 0.0.0.0，否则 -p 端口映射对外不可达

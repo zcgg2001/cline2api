@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,8 +12,6 @@ import (
 	"strings"
 	"time"
 )
-
-var execCommand = exec.Command
 
 var httpTransport = &http.Transport{
 	Proxy:               http.ProxyFromEnvironment,
@@ -36,11 +35,15 @@ func httpPostForm(rawURL string, form url.Values) (*http.Response, error) {
 }
 
 func httpPostJSON(rawURL string, body any) (*http.Response, error) {
+	return httpPostJSONContext(context.Background(), rawURL, body)
+}
+
+func httpPostJSONContext(ctx context.Context, rawURL string, body any) (*http.Response, error) {
 	data, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest("POST", rawURL, bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(ctx, "POST", rawURL, bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}

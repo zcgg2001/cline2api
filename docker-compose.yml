@@ -4,10 +4,10 @@ services:
     container_name: cline-proxy
     restart: unless-stopped
     ports:
-      - "3457:3457"
+      - "127.0.0.1:3457:3457"
     volumes:
-      - ./.cline-accounts.json:/app/.cline-accounts.json
-      - ./override.md:/app/override.md:ro
+      - ./data:/app/data
     environment:
-      - PORT=3457
       - CLINE_PROXY_HOST=0.0.0.0
+      - CLINE_PROXY_DATA_DIR=/app/data
+      - CLINE_ADMIN_PASSWORD=${CLINE_ADMIN_PASSWORD:?Set an initial admin password of 8-72 bytes}

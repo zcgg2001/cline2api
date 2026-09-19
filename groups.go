@@ -170,10 +170,18 @@ func handleAccountSubscription(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	previous := map[*Account]string{}
 	for _, a := range selected {
+		previous[a] = a.Subscription
 		a.Subscription = req.Subscription
 	}
-	savePoolLocked()
+	if err := savePoolLocked(); err != nil {
+		for a, subscription := range previous {
+			a.Subscription = subscription
+		}
+		writeAPI(w, 500, apiResponse{Error: tAPI(r, "account_save_failed")})
+		return
+	}
 	writeAPI(w, 200, apiResponse{Success: true, Data: map[string]any{"updated": len(selected)}})
 }
 
