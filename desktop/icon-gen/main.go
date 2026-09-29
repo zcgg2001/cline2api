@@ -1,6 +1,6 @@
 // 生成 Cline Go Proxy 桌面端图标：渐变背景 + 白色 "C" 形。
 // 同时嵌入 Windows 版本信息资源（文件属性页显示）和应用 manifest（DPI 感知/兼容性声明）。
-// 输出 resource_windows_amd64.syso，放在项目根目录后 go build 会自动链接。
+// 输出 resource_windows_amd64.syso，放到 cmd/cline-proxy/ 后 go build 会自动链接。
 package main
 
 import (

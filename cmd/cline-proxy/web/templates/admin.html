@@ -1,0 +1,2808 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23007aff'/%3E%3Cpath d='M17.3 4 7 17h9.2L15 28l10-13h-9.2z' fill='white'/%3E%3C/svg%3E">
+<title>Cline 代理管理面板</title>
+<style>
+:root{
+  --bg:#f5f5f7;--surface:#ffffff;--surface2:#fbfbfd;
+  --border:#d2d2d7;--border2:#e8e8ed;
+  --text:#1d1d1f;--text2:#86868b;--text3:#aeaeb2;
+  --accent:#007aff;--accent-hover:#0066d6;--accent-soft:#e8f0ff;
+  --green:#34c759;--green-soft:#e8f9ed;
+  --red:#ff3b30;--red-soft:#ffefee;
+  --yellow:#ff9500;--yellow-soft:#fff5e6;
+  --shadow-sm:0 1px 2px rgba(0,0,0,0.04),0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md:0 4px 12px rgba(0,0,0,0.06),0 1px 3px rgba(0,0,0,0.04);
+  --shadow-lg:0 12px 32px rgba(0,0,0,0.08),0 2px 8px rgba(0,0,0,0.04);
+  --radius:16px;--radius-sm:10px;--radius-xs:8px;
+  --ease:cubic-bezier(0.4,0,0.2,1);
+  --blue:#007aff;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Segoe UI','Noto Sans',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.layout{display:flex;min-height:100vh}
+
+/* ===== Sidebar ===== */
+.sidebar{width:260px;background:var(--surface);border-right:1px solid var(--border2);padding:0;flex-shrink:0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.sidebar-header{padding:20px 20px 16px;border-bottom:1px solid var(--border2)}
+.sidebar-header .brand{display:flex;align-items:center;gap:10px}
+.sidebar-header .logo{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#007aff,#5856d6);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:var(--shadow-sm)}
+.sidebar-header .logo svg{width:18px;height:18px;color:#fff}
+.sidebar-header .brand-name{font-size:15px;font-weight:600;color:var(--text);letter-spacing:-0.2px}
+.sidebar-header .brand-sub{font-size:12px;color:var(--text2);margin-top:2px}
+.nav-section{padding:16px 12px 8px}
+.nav-section-label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;padding:0 8px 8px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:9px 12px;cursor:pointer;color:var(--text2);transition:all 0.18s var(--ease);border-radius:var(--radius-xs);margin-bottom:2px;font-size:14px;font-weight:500}
+.nav-item:hover{color:var(--text);background:var(--surface2)}
+.nav-item.active{color:var(--accent);background:var(--accent-soft)}
+.nav-item svg{width:20px;height:20px;flex-shrink:0}
+.nav-item .nav-label{flex:1}
+.sidebar-footer{margin-top:auto;padding:16px 20px;border-top:1px solid var(--border2);font-size:12px;color:var(--text2)}
+.sidebar-footer a{color:var(--accent);text-decoration:none}
+.sidebar-footer a:hover{text-decoration:underline}
+.lang-switch{display:flex;gap:4px;margin-top:10px}
+.lang-switch button{flex:1;padding:5px 0;border:1px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;transition:all 0.18s var(--ease)}
+.lang-switch button:hover{color:var(--text);border-color:var(--text3)}
+.lang-switch button.active{color:var(--accent);background:var(--accent-soft);border-color:transparent}
+.sync-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:var(--surface);color:var(--accent);cursor:pointer;font-size:13px;font-weight:500;transition:all 0.18s var(--ease);white-space:nowrap}
+.sync-btn:hover{background:var(--accent-soft);border-color:var(--accent)}
+.sync-btn:disabled{opacity:0.6;cursor:wait}
+
+/* ===== Main ===== */
+.main{flex:1;min-width:0;padding:36px clamp(24px,4vw,64px) 64px;overflow-y:auto}
+.content-shell{width:min(100%,1440px);margin:0 auto}
+.large-title{font-size:32px;font-weight:700;letter-spacing:0;color:var(--text);margin-bottom:4px;text-wrap:pretty}
+.large-subtitle{font-size:15px;color:var(--text2);margin-bottom:28px}
+.page-header{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:28px}
+.page-header h2{font-size:28px;font-weight:700;letter-spacing:0}
+
+/* ===== Dashboard ===== */
+.metric-section{margin-bottom:26px}
+.metric-heading{font-size:13px;font-weight:600;color:var(--text2);margin:0 0 10px 2px}
+.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.cards.tokens{grid-template-columns:repeat(4,minmax(0,1fr))}
+.card{min-width:0;background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:18px;box-shadow:var(--shadow-sm);transition:transform 0.2s var(--ease),box-shadow 0.2s var(--ease)}
+.card:hover{transform:translateY(-1px);box-shadow:var(--shadow-md)}
+.card .card-icon{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+.card .card-icon svg{width:18px;height:18px}
+.card .num{overflow:hidden;text-overflow:ellipsis;font-size:30px;font-weight:700;letter-spacing:0;line-height:1.1;font-variant-numeric:tabular-nums}
+.card .label{font-size:13px;color:var(--text2);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card.blue .card-icon{background:var(--accent-soft)}.card.blue .card-icon svg{color:var(--blue)}.card.blue .num{color:var(--blue)}
+.card.green .card-icon{background:var(--green-soft)}.card.green .card-icon svg{color:var(--green)}.card.green .num{color:var(--green)}
+.card.yellow .card-icon{background:var(--yellow-soft)}.card.yellow .card-icon svg{color:var(--yellow)}.card.yellow .num{color:var(--yellow)}
+.card.red .card-icon{background:var(--red-soft)}.card.red .card-icon svg{color:var(--red)}.card.red .num{color:var(--red)}
+
+/* ===== Section / Grouped ===== */
+.section{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);margin-bottom:20px;overflow:hidden;box-shadow:var(--shadow-sm)}
+.section-title{padding:16px 20px 8px;font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px}
+.section-title svg{width:18px;height:18px;color:var(--text2)}
+.section-desc{padding:0 20px 12px;font-size:13px;color:var(--text2)}
+.section-body{padding:16px 20px}
+.section-body.flush{padding:0}
+
+/* ===== Tabs (segmented) ===== */
+.tabs{display:flex;border-bottom:1px solid var(--border2);padding:0 20px;gap:4px}
+.tab{padding:12px 18px;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;font-size:14px;font-weight:500;transition:all 0.18s var(--ease)}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none;padding:20px}
+.tab-content.active{display:block}
+body.read-only .nav-item[data-tab="import"],body.read-only .nav-item[data-tab="settings"],body.read-only .nav-item[data-tab="users"],
+body.read-only [onclick^="refreshAllTokens("],body.read-only [onclick^="exportAccounts("],body.read-only [onclick*="switchTab('import')"],
+body.read-only [onclick^="updateSubscriptions("],body.read-only .field:has(#bulkSubscription),
+body.read-only [onclick^="testAccount("],body.read-only [onclick^="resetAccount("],body.read-only [onclick^="deleteAccount("],body.read-only [data-admin-only]{display:none!important}
+
+/* ===== Table ===== */
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border2);font-size:13px;vertical-align:middle}
+.section-body.flush{overflow-x:auto}
+th{color:var(--text2);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.4px;white-space:nowrap}
+tbody tr:last-child td{border-bottom:none}
+tbody tr{transition:background 0.15s var(--ease)}
+tbody tr:hover{background:var(--surface2)}
+.account-table th:first-child,.account-table td:first-child{width:16%}
+.account-table th:nth-child(2),.account-table td:nth-child(2){width:8%}
+.account-table th:nth-child(3),.account-table td:nth-child(3){width:5%}
+.account-table th:nth-child(4),.account-table td:nth-child(4),.account-table th:nth-child(5),.account-table td:nth-child(5),.account-table th:nth-child(6),.account-table td:nth-child(6),.account-table th:nth-child(7),.account-table td:nth-child(7){width:7%;text-align:right;font-variant-numeric:tabular-nums}
+.account-table th:nth-child(8),.account-table td:nth-child(8),.account-table th:nth-child(9),.account-table td:nth-child(9){width:11%;white-space:nowrap;color:var(--text2)}
+.account-table th:last-child,.account-table td:last-child{width:120px;min-width:120px;text-align:right;white-space:nowrap}
+.account-table td:last-child .btn{width:32px;padding-left:0;padding-right:0;justify-content:center}
+.account-email{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-weight:500}
+.account-cards{display:none}
+.log-cards{display:none}
+.log-table th:first-child,.log-table td:first-child{width:14%;white-space:nowrap;color:var(--text2)}
+.log-table th:nth-child(2),.log-table td:nth-child(2){width:16%}
+.log-table th:nth-child(3),.log-table td:nth-child(3){width:7%}
+.log-table th:nth-child(4),.log-table td:nth-child(4){width:15%}
+.log-table th:nth-child(5),.log-table td:nth-child(5),.log-table th:nth-child(6),.log-table td:nth-child(6),.log-table th:nth-child(7),.log-table td:nth-child(7),.log-table th:nth-child(8),.log-table td:nth-child(8){width:6%;text-align:right;font-variant-numeric:tabular-nums}
+.log-table th:nth-child(9),.log-table td:nth-child(9),.log-table th:nth-child(10),.log-table td:nth-child(10),.log-table th:nth-child(11),.log-table td:nth-child(11){width:6%;text-align:right;font-variant-numeric:tabular-nums}
+.log-table th:last-child,.log-table td:last-child{width:6%;text-align:right;white-space:nowrap}
+.log-status{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600}
+.log-status.ok{background:var(--green-soft);color:var(--green)}
+.log-status.fail{background:var(--red-soft);color:var(--red)}
+
+/* ===== Status badges ===== */
+.status{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600}
+.status.active{background:var(--green-soft);color:var(--green)}
+.status.cooldown{background:var(--yellow-soft);color:var(--yellow)}
+.status.expired{background:var(--red-soft);color:var(--red)}
+.status-dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.status-dot.active{background:var(--green)}
+.status-dot.cooldown{background:var(--yellow)}
+.status-dot.expired{background:var(--red)}
+.status-cooldown{display:inline-flex;flex-direction:column;align-items:center;gap:0;line-height:1.2}
+.status-cooldown .cd-icon{font-size:13px}
+.status-cooldown .cd-time{font-size:10px;font-weight:500;opacity:0.8}
+
+/* ===== Buttons ===== */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);cursor:pointer;font-size:14px;font-weight:500;transition:all 0.18s var(--ease);text-decoration:none;line-height:1.2;white-space:nowrap}
+.btn:hover{background:var(--surface2);border-color:var(--text3)}
+.btn:active{transform:scale(0.97)}
+.btn svg{width:16px;height:16px}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn-success{background:var(--green);border-color:var(--green);color:#fff}
+.btn-success:hover{background:#2bb24c;border-color:#2bb24c}
+.btn-danger{border-color:var(--red);color:var(--red);background:var(--surface)}
+.btn-danger:hover{background:var(--red);color:#fff}
+.btn-sm{padding:5px 12px;font-size:13px}
+.btn-icon{padding:6px;width:32px;height:32px;justify-content:center}
+
+/* ===== Inputs ===== */
+input,textarea,select{width:100%;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;font-family:inherit;transition:border-color 0.18s var(--ease),box-shadow 0.18s var(--ease)}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+input:disabled{background:var(--surface2);color:var(--text2)}
+textarea{resize:vertical;min-height:88px;font-family:ui-monospace,'SF Mono','Cascadia Code','Consolas',monospace;font-size:12px;line-height:1.6}
+::placeholder{color:var(--text3)}
+
+/* ===== Forms ===== */
+.form-row{display:flex;gap:14px;align-items:flex-end;margin-bottom:14px}
+.form-row .field{flex:1}
+.form-row .field label{display:block;font-size:13px;color:var(--text2);margin-bottom:6px;font-weight:500}
+.form-actions{display:flex;gap:8px;margin-top:14px}
+
+/* ===== Toast ===== */
+.toast{position:fixed;top:24px;left:50%;transform:translateX(-50%) translateY(-20px);padding:12px 20px;border-radius:var(--radius-sm);color:#fff;z-index:9999;opacity:0;transition:all 0.3s var(--ease);font-size:14px;font-weight:500;max-width:420px;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:8px}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.success{background:var(--green)}
+.toast.error{background:var(--red)}
+.toast.info{background:var(--accent)}
+
+/* ===== Loading ===== */
+.loading{display:inline-block;width:14px;height:14px;border:2px solid var(--text3);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ===== Misc ===== */
+.empty{padding:40px;text-align:center;color:var(--text2);font-size:14px}
+.empty a{color:var(--accent);cursor:pointer;text-decoration:none}
+.empty a:hover{text-decoration:underline}
+.mono{font-family:ui-monospace,'SF Mono','Cascadia Code','Consolas',monospace;font-size:12px}
+.flex{display:flex;align-items:center;gap:8px}
+.justify-between{display:flex;justify-content:space-between;align-items:center}
+.text-right{text-align:right}
+.mt-8{margin-top:8px}
+.inline-flex{display:inline-flex;align-items:center;gap:6px}
+
+.key-display{background:var(--surface2);padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--border2);font-family:ui-monospace,'SF Mono','Cascadia Code','Consolas',monospace;font-size:12px;word-break:break-all;cursor:pointer;transition:all 0.15s var(--ease);color:var(--text)}
+.key-display:hover{background:var(--accent-soft);border-color:var(--accent)}
+.copy-icon{cursor:pointer;color:var(--text2);padding:2px 6px;border-radius:4px}
+.copy-icon:hover{color:var(--text);background:var(--surface2)}
+
+.empty-state{padding:48px 24px;text-align:center;color:var(--text2)}
+.empty-state .icon{width:48px;height:48px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;border-radius:14px;background:var(--surface2);color:var(--text3)}
+.empty-state .icon svg{width:24px;height:24px}
+
+.model-tag{display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:500;background:var(--surface2);color:var(--text2);margin:3px;border:1px solid var(--border2)}
+.model-tag.free{border-color:var(--green);color:var(--green);background:var(--green-soft)}
+.model-tag.pass{border-color:var(--yellow);color:var(--yellow);background:var(--yellow-soft)}
+.model-item{display:inline-flex;align-items:center;gap:2px;margin:3px}
+.model-item .model-tag{margin:0}
+.model-group{margin:4px 0 10px}
+.model-group-head{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;user-select:none;padding:5px 0}
+.model-group-head:hover{color:var(--text)}
+.model-group-caret{display:inline-block;width:12px;font-size:11px;color:var(--text3);transition:transform .15s}
+.model-group-head.expanded .model-group-caret{transform:rotate(90deg)}
+.model-group-count{font-size:11px;color:var(--text3);font-weight:400;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:0 7px;line-height:16px}
+.model-group-body{margin:2px 0 4px 18px}
+.warn-box{display:flex;align-items:flex-start;gap:8px;margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--yellow-soft);color:var(--yellow);font-size:13px;line-height:1.5;border:1px solid var(--yellow)}
+
+/* action row */
+.action-row{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ===== Responsive ===== */
+@media (max-width:760px){
+  .layout{display:block}
+  .sidebar{width:100%;height:auto;min-height:0;position:static;border-right:none;border-bottom:1px solid var(--border2)}
+  .sidebar-header{padding:14px 16px;border-bottom:none}
+  .sidebar-header .brand-sub,.nav-section-label,.sidebar-footer{display:none}
+  .nav-section{display:flex;padding:0 10px 12px;gap:4px;overflow-x:auto}
+  .nav-item{flex:1;justify-content:center;gap:6px;margin:0;padding:8px 10px;min-width:max-content}
+  .nav-item svg{width:18px;height:18px}
+	  .main{padding:24px 16px 40px;max-width:none}
+	  .content-shell{width:100%}
+	  .large-title{font-size:28px;letter-spacing:0}
+  .large-subtitle{margin-bottom:22px;font-size:14px}
+  .page-header{align-items:flex-start;gap:14px;flex-direction:column;margin-bottom:22px}
+	  .cards,.cards.tokens{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:20px}
+	  .card{padding:16px}
+  .card .num{font-size:28px}
+  .section{border-radius:14px;margin-bottom:16px}
+  .section-title{padding:14px 16px 7px}
+  .section-desc{padding:0 16px 10px}
+  .section-body,.tab-content{padding:16px}
+  .tabs{padding:0 12px;overflow-x:auto;white-space:nowrap}
+  .tab{padding:11px 12px;font-size:13px}
+  .form-row{flex-direction:column;align-items:stretch;gap:0;margin-bottom:0}
+  .form-row .field{margin-bottom:14px}
+  .form-actions,.action-row{gap:8px}
+	  table{min-width:680px}
+  .section-body.flush{overflow-x:auto}
+  th,td{padding:11px 12px}
+	  .toast{max-width:calc(100vw - 32px);width:max-content;text-align:center}
+	}
+	@media (min-width:761px) and (max-width:1180px){
+	  .main{padding:30px 32px 56px}
+	  .cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+	  .cards.tokens{grid-template-columns:repeat(3,minmax(0,1fr))}
+	  .account-table th:nth-child(9),.account-table td:nth-child(9){display:none}
+	}
+	@media (max-width:760px){
+	  .log-table{display:none}
+	  .log-cards{display:grid;gap:10px;padding:12px}
+	}
+	@media (max-width:760px){
+	  .account-table{display:none}
+	  .account-cards{display:grid;gap:10px;padding:12px}
+	  .account-card{border:1px solid var(--border2);border-radius:12px;padding:14px;background:var(--surface2)}
+	  .account-card-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+	  .account-card .account-email{max-width:calc(100vw - 170px)}
+	  .account-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
+	  .account-metric{padding:8px 10px;border-radius:8px;background:var(--surface)}
+	  .account-metric-label{display:block;color:var(--text2);font-size:11px;margin-bottom:2px}
+	  .account-metric-value{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+	  .account-card-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--text2);font-size:11px}
+	  .account-card-actions{display:flex;gap:6px;flex-shrink:0}
+	  .section-body.flush{overflow:visible}
+	}
+	@media (max-width:390px){
+	  .cards,.cards.tokens{grid-template-columns:1fr}
+	  .nav-item .nav-label{font-size:12px}
+	  .action-row .btn{flex:1;justify-content:center}
+	}
+.subscription-control{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.subscription-control label{display:inline-flex;align-items:center;margin:0}
+.subscription-control select{width:auto;min-width:90px}
+.account-table .status{white-space:nowrap}
+
+/* ===== Immersive login ===== */
+body.login-active{background-color:#100e0b}
+.login-active{overflow:hidden}
+.login-overlay{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;overflow:auto;padding:clamp(12px,3vw,42px);color:#f7faff}
+.login-aura-bg{position:absolute;inset:0;min-height:100vh;overflow:hidden;pointer-events:none}
+.login-wallpaper{position:absolute;inset:0;background-image:linear-gradient(90deg,rgba(5,7,9,.72) 0%,rgba(5,7,9,.22) 48%,rgba(5,7,9,.64) 100%),linear-gradient(180deg,rgba(5,7,9,.08),rgba(5,7,9,.5)),url('/admin/frieren-wallpaper.jpg');background-size:cover;background-position:center;filter:saturate(.92) contrast(1.06);transform:translateZ(0)}
+.aura-layer-1,.aura-layer-2,.aura-layer-3{position:absolute;inset:0;pointer-events:none;transform:translateZ(0);will-change:transform}
+.aura-layer-1{background:radial-gradient(90% 22% at 50% 56%,rgba(28,103,101,.34) 0%,rgba(18,65,64,.18) 38%,transparent 78%);mix-blend-mode:screen;filter:blur(166px)}
+.aura-layer-2{background:linear-gradient(172deg,transparent 35%,rgba(53,142,137,.2) 46%,rgba(29,89,87,.28) 53%,transparent 66%);mix-blend-mode:screen;filter:blur(151px);opacity:.9}
+.aura-layer-3{background:linear-gradient(8deg,transparent 38%,rgba(67,153,147,.1) 49%,transparent 60%);mix-blend-mode:soft-light;filter:blur(115px);opacity:.8}
+.aura-grain{position:absolute;inset:0;mix-blend-mode:overlay;opacity:.85;pointer-events:none}
+.aura-grain svg{display:block;width:100%;height:100%}
+.login-frame{position:relative;z-index:1;width:min(1110px,100%);min-height:min(680px,calc(100vh - 56px));display:grid;grid-template-columns:minmax(0,1.08fr) minmax(360px,.92fr);overflow:hidden;border:1px solid rgba(205,224,255,.2);border-radius:30px;background:rgba(10,16,28,.42);box-shadow:0 28px 90px rgba(0,0,0,.52),0 0 0 1px rgba(255,255,255,.04) inset;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);animation:loginFrameIn .65s var(--ease) both}
+.login-frame::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(120deg,rgba(151,199,255,.1),transparent 28%,transparent 74%,rgba(129,92,255,.09));mix-blend-mode:screen}
+.login-visual{position:relative;display:flex;flex-direction:column;justify-content:space-between;min-height:100%;padding:clamp(28px,5vw,58px);overflow:hidden;background:linear-gradient(145deg,rgba(6,13,25,.08),rgba(5,10,20,.34))}
+.login-visual::before{content:"";position:absolute;inset:16% -20% -26% -16%;background:radial-gradient(ellipse at 50% 45%,rgba(100,172,255,.18),transparent 50%);filter:blur(18px);pointer-events:none}
+.login-visual>*{position:relative;z-index:1}
+.login-visual-brand,.login-card-brand{display:flex;align-items:center;gap:11px;font-size:14px;letter-spacing:.06em;font-weight:650;color:#edf5ff}
+.login-brand-mark{display:grid;place-items:center;width:38px;height:38px;border:1px solid rgba(186,219,255,.34);border-radius:12px;background:linear-gradient(145deg,rgba(132,194,255,.24),rgba(92,85,229,.28));box-shadow:0 8px 24px rgba(36,112,217,.24),0 0 22px rgba(114,173,255,.18) inset}
+.login-brand-mark svg{width:20px;height:20px}
+.login-visual-copy{max-width:470px;margin-top:auto;margin-bottom:clamp(34px,8vh,92px)}
+.login-kicker,.login-eyebrow{margin:0 0 16px;color:#9ccaff;font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase}
+.login-visual-title{max-width:510px;margin:0;color:#fff;font-size:clamp(30px,4.2vw,58px);font-weight:620;letter-spacing:-.045em;line-height:1.04;text-wrap:balance}
+.login-visual-note{max-width:430px;margin:22px 0 0;color:rgba(226,238,255,.72);font-size:14px;line-height:1.75}
+.login-visual-meta{display:flex;gap:10px;flex-wrap:wrap;color:rgba(224,239,255,.74);font-size:11px}
+.login-visual-meta span{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid rgba(190,218,255,.17);border-radius:999px;background:rgba(12,27,49,.33)}
+.login-visual-meta span:first-child::before{content:"";width:6px;height:6px;border-radius:50%;background:#71e7b0;box-shadow:0 0 12px #71e7b0}
+.login-card{display:flex;align-items:center;padding:clamp(30px,5vw,66px);background:linear-gradient(145deg,rgba(22,31,51,.78),rgba(8,15,28,.84));border-left:1px solid rgba(205,224,255,.16)}
+.login-card-inner{width:min(100%,375px);margin:0 auto}
+.login-card-brand{margin-bottom:clamp(42px,8vh,88px);color:rgba(229,241,255,.9);font-size:12px;letter-spacing:.12em}
+.login-card-brand .login-brand-mark{width:32px;height:32px;border-radius:10px}.login-card-brand .login-brand-mark svg{width:17px;height:17px}
+.login-card .login-eyebrow{margin-bottom:10px;color:#8dbfff}
+.login-title{margin:0;color:#fff;font-size:clamp(28px,3.4vw,40px);font-weight:650;letter-spacing:-.04em;line-height:1.1}
+.login-subtitle{margin:12px 0 30px;color:rgba(218,231,250,.64);font-size:13px;line-height:1.65}
+.login-form{display:grid;gap:17px}
+.login-field label{display:block;margin:0 0 8px;color:rgba(224,236,255,.76);font-size:12px;font-weight:600}
+.login-input-wrap{position:relative}
+.login-input-wrap input{height:48px;padding:12px 42px 12px 14px;border:1px solid rgba(195,220,255,.18);border-radius:12px;background:rgba(2,8,18,.42);color:#fff;font-size:14px;box-shadow:0 1px 0 rgba(255,255,255,.04) inset;transition:border-color .2s var(--ease),box-shadow .2s var(--ease),background .2s var(--ease)}
+.login-input-wrap input::placeholder{color:rgba(189,209,237,.42)}
+.login-input-wrap input:hover{border-color:rgba(181,216,255,.34);background:rgba(2,9,20,.56)}
+.login-input-wrap input:focus{border-color:#78b8ff;box-shadow:0 0 0 3px rgba(75,152,255,.16),0 1px 0 rgba(255,255,255,.06) inset;background:rgba(2,10,23,.68)}
+.login-input-toggle{position:absolute;top:50%;right:10px;width:30px;height:30px;display:grid;place-items:center;transform:translateY(-50%);border:0;border-radius:8px;background:transparent;color:rgba(193,215,244,.56);cursor:pointer}
+.login-input-toggle:hover{color:#cce3ff;background:rgba(119,176,255,.12)}
+.login-input-toggle svg{width:17px;height:17px}
+.login-actions{display:flex;justify-content:space-between;align-items:center;margin-top:-3px;color:rgba(200,219,245,.6);font-size:11px}
+.login-secure{display:inline-flex;align-items:center;gap:7px}.login-secure::before{content:"";width:6px;height:6px;border-radius:50%;background:#6ee7ac;box-shadow:0 0 10px rgba(110,231,172,.7)}
+.login-submit{width:100%;height:48px;justify-content:center;margin-top:2px;border:1px solid rgba(145,204,255,.78);border-radius:12px;background:linear-gradient(105deg,#4a9fff,#716cff);color:#fff;box-shadow:0 14px 28px rgba(54,120,229,.3),0 0 24px rgba(99,157,255,.18) inset;font-size:14px;font-weight:650;letter-spacing:.08em;transition:transform .2s var(--ease),box-shadow .2s var(--ease),filter .2s var(--ease)}
+.login-submit:hover{filter:brightness(1.08);border-color:#b7dcff;box-shadow:0 18px 32px rgba(54,120,229,.38),0 0 28px rgba(119,177,255,.26) inset}
+.login-submit:active{transform:translateY(1px) scale(.99)}
+.login-submit:disabled{opacity:.68;cursor:wait;filter:saturate(.7)}
+.login-submit svg{width:16px;height:16px;transition:transform .2s var(--ease)}.login-submit:hover svg{transform:translateX(3px)}
+.login-divider{display:flex;align-items:center;gap:12px;margin:22px 0;color:rgba(187,208,235,.42);font-size:11px}.login-divider::before,.login-divider::after{content:"";height:1px;flex:1;background:rgba(188,211,240,.14)}
+.login-code-btn{width:100%;height:44px;justify-content:center;border-color:rgba(192,215,247,.2);border-radius:11px;background:rgba(255,255,255,.025);color:rgba(229,240,255,.78);font-size:13px}.login-code-btn:hover{background:rgba(137,185,255,.09);border-color:rgba(178,215,255,.42);color:#fff}
+.login-error{min-height:18px;margin:1px 0 0;color:#ff9d9b;font-size:12px;line-height:1.5;text-align:left}
+.login-card-foot{margin-top:34px;color:rgba(187,209,238,.4);font-size:11px;line-height:1.6}
+@keyframes loginFrameIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+@media (max-width:780px){
+  .login-overlay{align-items:flex-start;padding:12px}.login-frame{display:block;min-height:0;border-radius:22px}.login-visual{min-height:250px;padding:24px 24px 20px}.login-visual-copy{margin:44px 0 26px}.login-visual-title{font-size:32px;max-width:390px}.login-visual-note{margin-top:12px;font-size:12px;line-height:1.55}.login-visual-meta{display:none}.login-card{padding:30px 24px 34px;border-top:1px solid rgba(205,224,255,.16);border-left:0}.login-card-brand{margin-bottom:28px}.login-subtitle{margin-bottom:24px}.login-card-foot{margin-top:26px}.aura-layer-1{filter:blur(115px)}.aura-layer-2{filter:blur(105px)}.aura-layer-3{filter:blur(80px)}}
+@media (prefers-reduced-motion:reduce){.login-frame{animation:none}.login-submit svg{transition:none}}
+/* ACCOUNTS_CSS */
+</style>
+</head>
+<body>
+<div class="layout">
+<header class="topbar">
+  <div class="brand">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+    <div>
+      <div class="brand-name">Cline 代理</div>
+      <div class="brand-sub">多账号轮询 · 三协议</div>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <div class="lang-switch">
+      <button type="button" id="langZh" onclick="setLang('zh')">中文</button>
+      <button type="button" id="langEn" onclick="setLang('en')">English</button>
+    </div>
+    <button class="btn btn-sm update-check-button" id="updateCheckButton" onclick="document.getElementById('updateOverlay').style.display='flex';checkForUpdates(true)" title="检查 GitHub Releases 是否有新版本">检查更新</button>
+    <button class="btn btn-sm" onclick="openPasswordDialog()">修改密码</button>
+    <button class="btn btn-sm" onclick="logoutAdmin()">退出登录</button>
+  </div>
+</header>
+<div class="workspace">
+<div class="sidebar">
+  <div class="nav-section">
+    <div class="nav-section-label">管理</div>
+    <div class="nav-item active" data-tab="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span class="nav-label">仪表盘</span>
+    </div>
+    <div class="nav-item" data-tab="accounts">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span class="nav-label">账号</span>
+    </div>
+    <div class="nav-item" data-tab="channels">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 3-4 3 2 5-6"/><circle cx="7" cy="15" r="1"/><circle cx="10" cy="11" r="1"/><circle cx="13" cy="13" r="1"/><circle cx="18" cy="7" r="1"/></svg>
+      <span class="nav-label">模型状态</span>
+    </div>
+    <div class="nav-item" data-tab="logs">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+      <span class="nav-label">请求日志</span>
+    </div>
+    <div class="nav-item" data-tab="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span class="nav-label">密钥与设置</span>
+    </div>
+    <div class="nav-item" data-tab="users">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span class="nav-label">用户管理</span>
+    </div>
+    <div class="nav-item" data-tab="about">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <span class="nav-label">关于</span>
+    </div>
+  </div>
+  <div class="sidebar-footer">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+      <span style="font-weight:600;color:var(--text)">Cline2API</span>
+      <span id="footerVersion" style="font-size:11px;opacity:0.7">dev</span>
+    </div>
+    <div style="margin-bottom:4px">API: <span id="footerApiAddr">127.0.0.1:3457</span></div>
+    <div><a href="#" onclick="openExternal('https://github.com/zcgg2001/cline2api');return false">GitHub</a> · <a href="#" onclick="openExternal('https://github.com/zcgg2001/cline2api/issues');return false">反馈</a> · MIT</div>
+  </div>
+</div>
+
+<div class="main">
+<div class="content-shell">
+
+<div id="tab-dashboard" class="tab-panel">
+  <div class="large-title">仪表盘</div>
+  <div class="large-subtitle dashboard-subtitle"><span>先把服务跑起来，再关注账号池健康和今日用量</span><span id="dashboardLastUpdated" class="dashboard-updated">等待更新</span></div>
+  <div id="dashboard-onboarding" class="dashboard-onboarding" style="display:none">
+    <div class="onboarding-copy">
+      <div class="eyebrow">开始使用 Cline2API</div>
+      <h2>还没有账号</h2>
+      <p>先添加或导入 Cline 账号，代理才会开始轮询。完成后即可复制客户端配置并发起第一条请求。</p>
+      <div class="onboarding-actions" data-admin-only>
+        <button class="btn btn-primary" onclick="switchTab('import')">添加账号</button>
+        <button class="btn" onclick="document.getElementById('fileInput').click()">从文件导入</button>
+        <button class="btn" onclick="switchTab('settings');generateKey()">生成 API 密钥</button>
+      </div>
+    </div>
+    <div class="onboarding-steps">
+      <div><span>1</span><div><strong>添加账号</strong><small>OAuth 或 refreshToken</small></div></div>
+      <div><span>2</span><div><strong>生成密钥</strong><small>按 Free / Pass 分组授权</small></div></div>
+      <div><span>3</span><div><strong>复制配置</strong><small>填入 Cline / OpenCode</small></div></div>
+    </div>
+  </div>
+  <div id="dashboard-health" class="dashboard-health">
+    <div class="health-summary">
+      <div class="section-kicker">服务健康</div>
+      <div class="health-status-line"><span id="healthStatusDot" class="health-status-dot waiting"></span><strong id="healthStatusText">检查中</strong></div>
+      <div id="healthStatusHint" class="muted">正在读取代理状态…</div>
+    </div>
+    <div class="health-facts">
+      <div><span>监听地址</span><strong id="healthAddress">-</strong></div>
+      <div><span>轮询策略</span><strong id="healthStrategy">-</strong></div>
+      <div><span>最近成功</span><strong id="healthLastSuccess">暂无请求</strong></div>
+      <div><span>最近失败</span><strong id="healthLastFailure">暂无失败</strong></div>
+    </div>
+  </div>
+  <div id="client-access-card" class="client-access-card">
+    <div class="client-access-head"><div><div class="section-kicker">客户端接入</div><h3>复制后即可使用</h3></div><span class="protocol-tags"><span>OpenAI</span><span>Anthropic</span><span>Responses</span></span></div>
+    <div class="client-access-grid">
+      <div><span>Base URL</span><code id="clientBaseUrl">-</code><button class="link-button" onclick="copyClientValue('base')">复制</button></div>
+      <div><span>API Key</span><code id="clientApiKey">尚未生成</code><button class="link-button" onclick="copyClientValue('key')">复制</button></div>
+      <div><span>模型</span><code id="clientModel">-</code><button class="link-button" onclick="copyClientConfig()">复制配置</button></div>
+    </div>
+    <div id="clientAccessHint" class="client-access-hint">没有密钥时，代理允许匿名访问；生产或局域网使用建议生成密钥。</div>
+  </div>
+  <div id="dashboard-metrics" class="metric-strip">
+    <div>
+      <div class="metric-heading">账号状态</div>
+      <div class="metric-row">
+        <div class="metric"><div class="metric-label">账号总数</div><strong class="num" id="statTotal">-</strong></div>
+        <div class="metric"><div class="metric-label"><span class="status-dot active"></span>活跃</div><strong class="num" id="statActive">-</strong></div>
+        <div class="metric metric-clickable" onclick="switchTab('accounts');filterAccountsByStatus('cooldown')"><div class="metric-label"><span class="status-dot cooldown"></span>冷却</div><strong class="num" id="statCooldown">-</strong></div>
+        <div class="metric metric-clickable" onclick="switchTab('accounts');filterAccountsByStatus('expired')"><div class="metric-label"><span class="status-dot expired"></span>已过期</div><strong class="num" id="statExpired">-</strong></div>
+      </div>
+    </div>
+    <div>
+      <div class="metric-heading">Token 用量</div>
+      <div class="metric-row">
+        <div class="metric"><div class="metric-label">累计输入 Token</div><strong class="num" id="statPromptTokens">-</strong></div>
+        <div class="metric"><div class="metric-label">累计输出 Token</div><strong class="num" id="statCompletionTokens">-</strong></div>
+        <div class="metric"><div class="metric-label">累计总 Token</div><strong class="num" id="statTotalTokens">-</strong></div>
+        <div class="metric"><div class="metric-label">缓存 Token</div><strong class="num" id="statCachedTokens">-</strong></div>
+      </div>
+    </div>
+    <div>
+      <div class="metric-heading">opencode 免费模型 · 今日用量</div>
+      <div class="metric-row">
+        <div class="metric"><div class="metric-label">今日请求数</div><strong class="num" id="statOcRequests">-</strong></div>
+        <div class="metric"><div class="metric-label">今日输入 Token</div><strong class="num" id="statOcInputTokens">-</strong></div>
+        <div class="metric"><div class="metric-label">今日输出 Token</div><strong class="num" id="statOcOutputTokens">-</strong></div>
+        <div class="metric"><div class="metric-label">今日总 Token</div><strong class="num" id="statOcTotalTokens">-</strong></div>
+      </div>
+    </div>
+  </div>
+  <div id="dashboard-actions" class="section" data-admin-only>
+    <div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>快捷操作</div>
+    <div class="section-body action-row">
+      <button class="btn btn-primary" onclick="switchTab('import')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>添加账号</button>
+      <button id="refreshTokensAction" class="btn" onclick="refreshAllTokens()" title="会请求 Cline 上游，可能触发限流"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>刷新全部 Token</button>
+      <input type="file" id="fileInput" accept=".json,.txt" style="display:none" onchange="handleFileImport(event)">
+      <button class="btn" onclick="switchTab('settings');loadKeys()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>管理 API 密钥</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ACCOUNTS_HTML -->
+
+<div id="tab-import" class="tab-panel" style="display:none">
+  <div class="large-title">导入账号</div>
+  <div class="large-subtitle">通过 OAuth 登录、手动 Token 或批量文件添加账号</div>
+  <div class="form-row"><div class="field"><label for="importSubscription">新账号订阅（文件中已有分类优先）</label><select id="importSubscription"><option value="unknown">待确认</option><option value="free">Free</option><option value="pass">Pass</option></select></div></div>
+  <div class="section">
+    <div class="tabs" id="importTabs">
+      <div class="tab active" data-tab="oauth">OAuth 浏览器登录</div>
+      <div class="tab" data-tab="token">手动输入 Token</div>
+      <div class="tab" data-tab="batch">批量导入</div>
+    </div>
+
+    <div id="import-oauth" class="tab-content active">
+      <p style="color:var(--text2);margin-bottom:16px">通过浏览器完成 OAuth 认证，支持 Google/GitHub/邮箱登录，自动获取 refreshToken。</p>
+      <button class="btn btn-primary" onclick="startOAuth()" id="oauthBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>开始 OAuth 登录</button>
+      <div id="oauthProgress" style="display:none;margin-top:16px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="loading"></div>
+          <div>
+            <div style="font-weight:600" id="oauthStatus">等待浏览器授权...</div>
+            <div style="color:var(--text2);font-size:13px;margin-top:4px">
+              点击链接（系统浏览器打开）: <a href="#" id="oauthUrl" style="color:var(--accent);cursor:pointer"></a><br>
+              并输入代码: <strong id="oauthUserCode"></strong>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="oauthResult" style="display:none;margin-top:16px"></div>
+    </div>
+
+    <div id="import-token" class="tab-content">
+      <p style="color:var(--text2);margin-bottom:16px">输入已有的 Cline refreshToken，系统会自动验证并加入池。</p>
+      <div class="form-row">
+        <div class="field">
+          <label>Refresh Token *</label>
+          <input type="text" id="tokenInput" placeholder="粘贴 refreshToken">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>邮箱（可选，留空自动生成）</label>
+          <input type="text" id="tokenEmail" placeholder="user@example.com">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="addByToken()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>添加账号</button>
+      </div>
+      <div id="tokenResult" style="margin-top:8px"></div>
+    </div>
+
+    <div id="import-batch" class="tab-content">
+      <p style="color:var(--text2);margin-bottom:16px">批量导入多个账号。支持 JSON 数组或每行一个 token。</p>
+      <div class="form-row">
+        <div class="field">
+          <label>JSON 数组格式：[{"refreshToken":"...","email":"..."}]</label>
+          <textarea id="batchInput" placeholder='[{"refreshToken":"xxx","email":"u1@x.com"},{"refreshToken":"yyy","email":"u2@x.com"}]'></textarea>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="batchImport()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>导入全部</button>
+        <button class="btn" onclick="document.getElementById('fileInput2').click()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>选择文件</button>
+        <input type="file" id="fileInput2" accept=".json,.txt" style="display:none" onchange="handleFileImport(event)">
+      </div>
+      <div id="batchResult" style="margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+<div id="tab-logs" class="tab-panel" style="display:none">
+  <div class="page-header">
+    <div>
+      <div class="large-title">请求日志</div>
+      <div class="large-subtitle">查看每次请求的 Token 消耗、缓存、耗时与流式速度</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-sm" onclick="loadRequestLogs(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>刷新</button>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-body flush">
+      <table class="log-table">
+        <thead>
+          <tr><th>时间</th><th>账号</th><th>协议</th><th>模型</th><th>输入</th><th>输出</th><th>缓存</th><th>总</th><th>耗时</th><th>TTFT</th><th>tok/s</th><th>状态</th></tr>
+        </thead>
+        <tbody id="logTableBody">
+          <tr><td colspan="12" class="empty">加载中...</td></tr>
+        </tbody>
+      </table>
+      <div id="logCards" class="log-cards"></div>
+    </div>
+  </div>
+  <div id="logLoadMore" style="display:none;text-align:center;padding:16px">
+    <button class="btn btn-primary" onclick="loadRequestLogs(false)">加载更多</button>
+  </div>
+</div>
+
+<div id="tab-settings" class="tab-panel" style="display:none">
+  <div class="large-title">设置</div>
+  <div class="large-subtitle">管理 API 密钥、模型、代理配置与请求头</div>
+
+  <div class="section">
+    <div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>API 密钥管理</div>
+    <div class="section-body">
+      <div class="keys-toolbar">
+        <p>为每一个工具，创建专属的访问密钥。生成后仅展示一次完整密钥；订阅分组决定该 Key 能调度哪些账号。</p>
+        <div class="keys-toolbar-actions">
+          <div class="field"><label for="newKeyGroups">新 Key 可用分组</label><select id="newKeyGroups"><option value="free,pass">Free + Pass</option><option value="free">仅 Free</option><option value="pass">仅 Pass</option></select></div>
+          <button class="btn btn-primary" onclick="generateKey()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>创建密钥</button>
+        </div>
+      </div>
+      <div id="keyGenResult"></div>
+      <div id="keysList"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="15" x2="15" y2="15"/></svg><span>可用模型</span>
+      <span style="margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px;font-weight:400;color:var(--text3)">
+        <span><span>上次同步</span>: <span id="modelSyncTime">从未同步</span></span>
+        <button class="sync-btn" id="syncModelsBtn" onclick="syncModels()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg><span>从 Cline 同步模型</span></button>
+        <button class="sync-btn" id="syncOcModelsBtn" onclick="syncOcModels()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg><span>从 opencode 同步模型</span></button>
+      </span>
+    </div>
+    <div class="section-body">
+      <div id="modelsList" class="action-row">加载中...</div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <div class="field" style="flex:1;min-width:220px">
+          <label>添加模型</label>
+          <input type="text" id="newModelId" placeholder="如 deepseek/deepseek-v4-flash" style="font-family:ui-monospace,monospace">
+        </div>
+        <div class="field">
+          <label>计费</label>
+          <select id="newModelCost">
+            <option value="pass">付费 (pass)</option>
+            <option value="free">免费 (free)</option>
+          </select>
+        </div>
+        <button class="btn btn-success" onclick="addModel()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>添加</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>访问设置</div>
+    <div class="section-body">
+      <div class="form-row">
+        <div class="field">
+          <label>监听地址</label>
+          <select id="settingListenHost" onchange="saveListenHost()">
+            <option value="127.0.0.1">127.0.0.1（仅本机）</option>
+            <option value="0.0.0.0">0.0.0.0（所有网卡）</option>
+          </select>
+        </div>
+        <div class="field"><label>当前地址</label><input type="text" id="settingAddr" disabled></div>
+      </div>
+      <div id="listenWarn" class="warn-box" style="display:none">当前监听局域网地址，请使用强密码并限制可访问此端口的设备。</div>
+      <div id="localIPsRow" class="form-row" style="display:none">
+        <div class="field" style="flex:1">
+          <label>本机 IP（局域网访问地址）</label>
+          <div id="localIPsList"></div>
+        </div>
+      </div>
+      <div class="form-row" style="margin-top:12px">
+        <div class="field" style="flex:1">
+          <label>管理后台密码（<span id="passwordStatus">未启用</span>）</label>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="openPasswordDialog()">修改密码</button>
+          </div>
+          <div style="font-size:12px;color:var(--text3);margin-top:4px">修改当前用户密码后，该用户的所有会话将退出。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>代理配置</div>
+    <div class="section-body">
+      <div class="form-row">
+        <div class="field"><label>默认模型</label><select id="settingDefModel" onchange="updateConfig()"><option value="">加载中...</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>轮询策略</label>
+          <select id="settingStrategy" onchange="updateConfig()">
+            <option value="round_robin">轮询 (round_robin)</option>
+            <option value="fill">填满 (fill)</option>
+            <option value="random">随机 (random)</option>
+          </select>
+        </div>
+        <div class="field"><label>引擎版本</label><input type="text" id="settingVersion" disabled></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>账号文件</label><input type="text" id="settingPoolPath" disabled></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span>opencode 免费模型</span>
+      <span style="margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px;font-weight:400;color:var(--text3)">
+        <span id="ocRuntimeStatus">-</span>
+      </span>
+    </div>
+    <div class="section-desc">接入 opencode（zen）免费模型。按请求中的模型名自动分流：免费模型走 opencode 上游，付费模型直接拒绝，其余走 Cline 账号池。</div>
+    <div class="section-body">
+      <div class="form-row">
+        <div class="field" style="max-width:220px">
+          <label>启用 opencode</label>
+          <select id="ocEnabled">
+            <option value="true">启用</option>
+            <option value="false">停用</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1"><label>API Key</label><input type="text" id="ocKey" placeholder="public"></div>
+        <div class="field" style="flex:1.4"><label>Base URL</label><input type="text" id="ocBaseURL" placeholder="https://opencode.ai/zen/v1" style="font-family:ui-monospace,monospace"></div>
+      </div>
+      <div class="form-row" style="margin-top:12px">
+        <div class="field"><label>最大并发</label><input type="number" id="ocMaxConcurrency" min="1" max="64"></div>
+        <div class="field"><label>重试次数</label><input type="number" id="ocRetries" min="0" max="10"></div>
+        <div class="field"><label>故障转移</label>
+          <select id="ocFailover">
+            <option value="true">开启（连续失败后暂走 Cline 池）</option>
+            <option value="false">停用</option>
+          </select>
+        </div>
+        <div class="field"><label>失败阈值（次）</label><input type="number" id="ocFailoverCount" min="1" max="20"></div>
+        <div class="field"><label>转移窗口（分钟）</label><input type="number" id="ocFailoverMinutes" min="1" max="120"></div>
+      </div>
+      <div class="form-row" style="margin-top:12px">
+        <div class="field"><label>自动上下文压缩</label>
+          <select id="ocCompactAuto">
+            <option value="true">开启（超限自动摘要）</option>
+            <option value="false">停用</option>
+          </select>
+        </div>
+        <div class="field"><label>压缩缓冲 Token</label><input type="number" id="ocCompactBuffer" min="0"></div>
+        <div class="field"><label>尾部保留 Token</label><input type="number" id="ocCompactKeepTokens" min="0"></div>
+        <div class="field"><label>摘要最大 Token</label><input type="number" id="ocCompactMaxSummary" min="0"></div>
+      </div>
+      <div class="form-actions" style="margin-top:14px">
+        <button class="btn btn-primary" onclick="saveOcConfig()">保存 opencode 配置</button>
+      </div>
+      <div id="ocSaveResult" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>opencode 出口代理</div>
+    <div class="section-desc">发往 opencode 的请求可经代理池轮询出口；命中限流时冷却当前出口并自动跳过。支持 http / https / socks5 / socks5h，每行一个，如 <span class="mono">socks5://127.0.0.1:1080</span>。</div>
+    <div class="section-body">
+      <div class="form-row">
+        <div class="field" style="max-width:260px">
+          <label>代理策略</label>
+          <select id="ocProxyStrategy">
+            <option value="round_robin">轮询 (round_robin)</option>
+            <option value="random">随机 (random)</option>
+            <option value="fill">填满 (fill)</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1"><label>出口冷却状态</label><div id="ocProxyCooldowns" style="font-size:12px;color:var(--text3)">-</div></div>
+      </div>
+      <div class="field" style="margin-top:10px">
+        <label>代理列表</label>
+        <textarea id="ocProxies" rows="4" style="width:100%;font-family:ui-monospace,monospace;font-size:12px;border:1px solid var(--border2);border-radius:8px;padding:8px;background:var(--surface);color:var(--text)" placeholder="socks5://127.0.0.1:1080&#10;http://user:pass@proxy.example.com:8080"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>请求头配置（模拟 Cline CLI 发出）</div>
+    <div class="section-desc">这些请求头会附加到所有转发给 Cline API 的请求中，以模拟官方客户端行为。</div>
+    <div class="section-body">
+      <table>
+        <thead><tr><th style="width:240px">请求头</th><th>值</th><th style="width:48px"></th></tr></thead>
+        <tbody id="headersTableBody">
+          <tr><td colspan="3" class="empty">加载中...</td></tr>
+        </tbody>
+      </table>
+      <div class="form-actions" style="margin-top:14px">
+        <button class="btn btn-sm" onclick="addHeaderRow()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>添加请求头</button>
+        <button class="btn btn-sm btn-primary" onclick="saveHeaders()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>保存请求头</button>
+      </div>
+      <div id="headerSaveResult" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>危险操作</div>
+    <div class="section-body">
+      <div class="action-row">
+        <button class="btn btn-danger" onclick="deleteAllAccounts()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>删除全部账号</button>
+        <button class="btn btn-danger" onclick="deleteAllKeys()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>删除全部密钥</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div id="tab-about" class="tab-panel" style="display:none">
+  <div class="large-title">关于</div>
+  <div class="large-subtitle">应用信息、使用指南与开源协议</div>
+
+  <div class="section">
+    <div class="section-title">应用信息</div>
+    <div class="section-body">
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+        <div style="width:40px;height:40px;border-radius:8px;background:#fff;border:1px solid #E7E9EE;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:28px;height:28px"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        </div>
+        <div>
+          <div style="font-size:20px;font-weight:700;color:var(--text)">Cline2API</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:2px">Cline API 反向代理 · 多账号轮询 · 三协议兼容</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:4px"><span id="aboutVersion">dev</span> · MIT License · Go 1.25 + Wails v2</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">快速上手</div>
+    <div class="section-body">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="width:24px;height:24px;border-radius:8px;background:#F7F8FA;border:1px solid #E7E9EE;color:#111318;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0">1</div>
+          <div>
+            <div style="font-weight:600;color:var(--text)">添加 Cline 账号</div>
+            <div style="font-size:13px;color:var(--text2);margin-top:2px">前往「导入账号」页面，通过 OAuth 登录或手动输入 refreshToken 添加账号。支持批量导入。</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="width:24px;height:24px;border-radius:8px;background:#F7F8FA;border:1px solid #E7E9EE;color:#111318;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0">2</div>
+          <div>
+            <div style="font-weight:600;color:var(--text)">生成 API Key</div>
+            <div style="font-size:13px;color:var(--text2);margin-top:2px">前往「设置」页面生成密钥。如不配置任何密钥，代理允许匿名访问。</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="width:24px;height:24px;border-radius:8px;background:#F7F8FA;border:1px solid #E7E9EE;color:#111318;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0">3</div>
+          <div>
+            <div style="font-weight:600;color:var(--text)">配置客户端</div>
+            <div style="font-size:13px;color:var(--text2);margin-top:2px">在 Claude Code、Cline 等客户端中设置：</div>
+            <div style="font-family:ui-monospace,monospace;font-size:12px;background:var(--surface2);padding:8px 12px;border-radius:6px;margin-top:6px;color:var(--text2)">
+              Base URL: http://127.0.0.1:3457/v1<br>
+              API Key: &lt;生成的密钥&gt;<br>
+              Model: cline-free/glm-5.2
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">功能特性</div>
+    <div class="section-body">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;font-size:13px;color:var(--text2)">
+        <div>✅ 多账号轮询（轮询/填满/随机）</div>
+        <div>✅ Chat Completions / Responses / Messages</div>
+        <div>✅ 429 冷却自动恢复</div>
+        <div>✅ 账号导出/导入（跨设备迁移）</div>
+        <div>✅ OAuth 系统浏览器登录</div>
+        <div>✅ 请求日志与统计</div>
+        <div>✅ System Prompt 覆盖</div>
+        <div>✅ 跨平台桌面端（Win/Mac/Linux）</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">项目链接</div>
+    <div class="section-body">
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:14px">
+        <div><span style="color:var(--text3);display:inline-block;width:80px">仓库地址</span><a href="#" onclick="openExternal('https://github.com/zcgg2001/cline2api');return false" style="color:var(--accent);cursor:pointer">github.com/zcgg2001/cline2api</a></div>
+        <div><span style="color:var(--text3);display:inline-block;width:80px">问题反馈</span><a href="#" onclick="openExternal('https://github.com/zcgg2001/cline2api/issues');return false" style="color:var(--accent);cursor:pointer">github.com/zcgg2001/cline2api/issues</a></div>
+        <div><span style="color:var(--text3);display:inline-block;width:80px">下载更新</span><a href="#" onclick="openExternal('https://github.com/zcgg2001/cline2api/releases');return false" style="color:var(--accent);cursor:pointer">github.com/zcgg2001/cline2api/releases</a></div>
+        <div><span style="color:var(--text3);display:inline-block;width:80px">开源协议</span>MIT License © 2026 luawei1</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">数据与隐私</div>
+    <div class="section-body">
+      <div style="font-size:13px;color:var(--text2);line-height:1.8">
+        <div>• 本程序仅在本地运行，默认监听 <code style="background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:12px">127.0.0.1:3457</code>，不对外暴露。</div>
+        <div>• 账号凭据（refreshToken）存储在可执行文件同目录的 <code style="background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:12px">.cline-accounts.json</code> 中，明文保存，请注意保护。</div>
+        <div>• 所有 API 请求通过本机代理转发至 Cline 官方服务器，不经过任何第三方。</div>
+        <div>• 关闭窗口即停止服务，无后台驻留进程。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="tab-users" class="tab-panel" style="display:none">
+  <div class="page-header">
+    <div>
+      <div class="large-title">用户管理</div>
+      <div class="large-subtitle">管理可登录后台的管理员与用户账号</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary btn-sm" onclick="loadUsers()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>刷新用户</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>添加新用户</div>
+    <div class="section-body">
+      <div class="form-row" style="display:flex;gap:12px;flex-wrap:wrap">
+        <div class="field" style="flex:1;min-width:160px">
+          <label>用户名</label>
+          <input type="text" id="newUsername" placeholder="用户名，如 admin2">
+        </div>
+        <div class="field" style="flex:1;min-width:160px">
+          <label>密码</label>
+          <input type="password" id="newPassword" placeholder="初始密码">
+        </div>
+        <div class="field" style="width:140px">
+          <label>角色</label>
+          <select id="newUserRole">
+            <option value="user">普通用户 (user)</option>
+            <option value="admin">管理员 (admin)</option>
+          </select>
+        </div>
+        <div class="field" style="align-self:flex-end">
+          <button class="btn btn-primary" onclick="addUser()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>添加用户</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>用户列表</div>
+    <div class="section-body flush">
+      <table>
+        <thead>
+          <tr><th style="width:25%">用户名</th><th style="width:20%">角色</th><th style="width:30%">创建时间</th><th style="width:25%">操作</th></tr>
+        </thead>
+        <tbody id="userTableBody">
+          <tr><td colspan="4" class="empty">加载中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div>
+</div>
+</div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<div id="passwordOverlay" role="dialog" aria-modal="true" aria-labelledby="passwordTitle" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(248,250,252,0.96);align-items:center;justify-content:center">
+  <form onsubmit="savePassword(event)" style="width:min(400px,calc(100vw - 40px));max-height:calc(100vh - 40px);overflow:auto;padding:28px;background:var(--surface);border:1px solid var(--border);border-radius:16px">
+    <h2 id="passwordTitle">修改密码</h2>
+    <p id="passwordHint" style="color:var(--text2);margin:12px 0"></p>
+    <div class="field"><label for="currentPassword">当前密码</label><input type="password" id="currentPassword" autocomplete="current-password" required></div>
+    <div class="field"><label for="newSelfPassword">新密码</label><input type="password" id="newSelfPassword" autocomplete="new-password" required></div>
+    <div class="field"><label for="confirmSelfPassword">确认新密码</label><input type="password" id="confirmSelfPassword" autocomplete="new-password" required></div>
+    <p id="passwordError" style="color:var(--text);margin:12px 0" role="alert"></p>
+    <button type="submit" class="btn btn-primary" id="savePasswordButton">保存</button>
+    <button type="button" class="btn" id="cancelPasswordButton" onclick="closePasswordDialog()">取消</button>
+    <button type="button" class="btn" onclick="logoutAdmin()">退出登录</button>
+  </form>
+</div>
+<div id="loginOverlay" class="login-overlay" role="dialog" aria-modal="true" aria-labelledby="loginTitle" aria-hidden="true">
+  <div class="login-aura-bg" aria-hidden="true">
+    <div class="login-wallpaper"></div>
+    <div class="aura-layer-1"></div>
+    <div class="aura-layer-2"></div>
+    <div class="aura-layer-3"></div>
+  </div>
+  <div class="login-frame">
+    <section class="login-visual" aria-label="Cline2API 产品介绍">
+      <div class="login-visual-brand">
+        <span class="login-brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
+        <span>Cline2API</span>
+      </div>
+      <div class="login-visual-copy">
+        <p class="login-kicker">CONTROL PLANE / 05</p>
+        <h2 class="login-visual-title">把复杂的模型路由，交给清晰的控制台。</h2>
+        <p class="login-visual-note">集中管理账号池、模型与请求流量，让每一次请求都可追踪。</p>
+      </div>
+      <div class="login-visual-meta" aria-label="系统状态"><span>本地运行</span><span>安全会话</span></div>
+    </section>
+    <section class="login-card">
+      <div class="login-card-inner">
+        <div class="login-card-brand"><span class="login-brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span><span>管理工作区</span></div>
+        <p class="login-eyebrow">WELCOME BACK</p>
+        <h1 id="loginTitle" class="login-title">欢迎回来</h1>
+        <p class="login-subtitle">登录你的 Cline API 工作区，继续管理服务。</p>
+        <form id="loginForm" class="login-form" onsubmit="submitLogin(event)">
+          <div class="login-field">
+            <label for="loginUsername">用户名</label>
+            <div class="login-input-wrap"><input type="text" id="loginUsername" placeholder="默认 admin" autocomplete="username" autofocus></div>
+          </div>
+          <div class="login-field">
+            <label for="loginPassword">密码</label>
+            <div class="login-input-wrap">
+              <input type="password" id="loginPassword" placeholder="输入密码" autocomplete="current-password">
+              <button type="button" class="login-input-toggle" id="loginPasswordToggle" aria-label="显示密码" title="显示密码" onclick="toggleLoginPassword()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg></button>
+            </div>
+          </div>
+          <div class="login-actions"><span class="login-secure">安全会话已启用</span><span>本地访问</span></div>
+          <button type="submit" class="btn login-submit" id="loginSubmit"><span>登 录</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></button>
+          <p id="loginError" class="login-error" role="alert" aria-live="polite"></p>
+        </form>
+        <div class="login-card-foot">初始密码仅限本机首次修改 · 请妥善保管管理员凭据</div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="modelSyncOverlay" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(17,19,24,0.24);align-items:center;justify-content:center">
+  <div id="modelSyncModal" style="width:min(480px,calc(100vw - 40px));padding:24px;background:var(--surface);border-radius:14px;border:1px solid var(--border2);box-shadow:none"></div>
+</div>
+
+<div id="updateOverlay" class="update-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="updateTitle">
+  <div class="update-modal">
+    <button class="update-close" type="button" onclick="closeUpdateDialog()" aria-label="关闭">×</button>
+    <div class="update-kicker">CLINE2API UPDATE</div>
+    <h2 id="updateTitle">检查更新</h2>
+    <div class="update-version-row"><span>当前版本</span><strong id="updateCurrentVersion">-</strong></div>
+    <div class="update-version-row"><span>最新版本</span><strong id="updateLatestVersion">-</strong></div>
+    <div id="updateWarning" class="update-warning" style="display:none"></div>
+    <div id="updateNotes" class="update-notes" style="display:none" data-i18n-ignore></div>
+    <div id="updateStatus" class="update-status">正在检查 GitHub Releases…</div>
+    <button id="applyUpdateButton" class="btn btn-primary update-primary" style="display:none" onclick="applyOnlineUpdate()">立即更新</button>
+    <button id="releaseNotesButton" class="btn update-secondary" style="display:none" onclick="openUpdateRelease()">查看更新内容 ↗</button>
+    <button id="closeUpdateButton" class="btn update-secondary" onclick="closeUpdateDialog()">关闭</button>
+  </div>
+</div>
+
+<script>
+
+// ===== i18n =====
+const I18N = {
+  '修改密码': 'Change password',
+  '当前密码': 'Current password',
+  '新密码': 'New password',
+  '确认新密码': 'Confirm new password',
+  '请先修改初始密码，完成后重新登录。': 'Change the initial password, then sign in again.',
+  '修改当前用户密码后，该用户的所有会话将退出。': 'Changing your password signs out all your sessions.',
+  '新密码长度必须为 8–72 字节': 'New password must be 8–72 bytes',
+  '两次输入的新密码不一致': 'The new passwords do not match',
+  '当前监听局域网地址，请使用强密码并限制可访问此端口的设备。': 'Listening on the LAN. Use a strong password and restrict access to this port.',
+  '订阅分组': 'Subscription groups',
+  '当前分组暂无账号': 'No accounts in this group',
+  '未授权': 'Not authorized',
+  '全部': 'All',
+  '待确认': 'Unconfirmed',
+  '批量设置订阅': 'Bulk subscription update',
+  '应用到勾选账号': 'Apply to selected accounts',
+  '订阅': 'Subscription',
+  '待确认账号不参与调度；分组只允许使用 Key 授权范围内的账号。': 'Unconfirmed accounts are excluded. Only accounts in the API key scope can be scheduled.',
+  '新账号订阅（文件中已有分类优先）': 'New account subscription (file values take priority)',
+  '新 Key 可用分组': 'Allowed groups for new keys',
+  '仅 Free': 'Free only',
+  '仅 Pass': 'Pass only',
+  '请选择账号': 'Select accounts first',
+  '确认更新这些账号的订阅？': 'Update subscriptions for these accounts?',
+  '订阅已更新': 'Subscriptions updated',
+  '分组权限已更新': 'Group permissions updated',
+  '分组统计（最近30天，最多5000条日志）': 'Group usage (last 30 days, up to 5,000 logs)',
+  'Cline 代理': 'Cline Proxy',
+  '多账号轮询 · 三协议': 'Multi-account rotation · Three protocols',
+  '管理': 'Admin',
+  '仪表盘': 'Dashboard',
+  '先把服务跑起来，再关注账号池健康和今日用量': 'Start the service first, then monitor pool health and today\'s usage',
+  '等待更新': 'Waiting for update',
+  '服务健康': 'Service health',
+  '检查中': 'Checking',
+  '正在读取代理状态…': 'Reading proxy status…',
+  '无法读取状态': 'Unable to read status',
+  '最近成功': 'Last success',
+  '暂无请求': 'No requests yet',
+  '最近失败': 'Last failure',
+  '暂无失败': 'No failures yet',
+  '暂无': 'None',
+  ' 秒前': ' seconds ago',
+  ' 分钟前': ' minutes ago',
+  '运行正常': 'Operational',
+  '最近请求失败': 'Recent request failed',
+  '等待首个请求': 'Waiting for first request',
+  '状态未知': 'Unknown status',
+  '最近请求': 'Recent request',
+  '代理已启动，等待第一条请求': 'Proxy is running and waiting for the first request',
+  '已配置 ': 'Configured ',
+  ' 个密钥，可按分组限制 Free / Pass 账号。': ' key(s); Free / Pass accounts can be restricted by group.',
+  '暂时无法读取': 'Temporarily unavailable',
+  '更新于 ': 'Updated ',
+  '数据加载失败：': 'Failed to load data: ',
+  '客户端接入': 'Client access',
+  '复制后即可使用': 'Copy and use',
+  '复制': 'Copy',
+  '复制配置': 'Copy config',
+  '尚未生成': 'Not generated',
+  '没有密钥时，代理允许匿名访问；生产或局域网使用建议生成密钥。': 'Without a key, the proxy allows anonymous access; generate one for production or LAN use.',
+  '密钥与设置': 'Keys & Settings',
+  '管理 API 密钥': 'Manage API keys',
+  '会请求 Cline 上游，可能触发限流': 'Contacts the Cline upstream and may trigger rate limits',
+  '开始使用 Cline2API': 'Get started with Cline2API',
+  '还没有账号': 'No accounts yet',
+  '先添加或导入 Cline 账号，代理才会开始轮询。完成后即可复制客户端配置并发起第一条请求。': 'Add or import a Cline account to start routing requests. Then copy the client configuration and send your first request.',
+  '生成密钥': 'Generate key',
+  '按 Free / Pass 分组授权': 'Authorize by Free / Pass group',
+  '填入 Cline / OpenCode': 'Paste into Cline / OpenCode',
+  'OAuth 或 refreshToken': 'OAuth or refreshToken',
+  'API Key: <生成的密钥>': 'API Key: <generated API key>',
+  '<后台生成的 Key>': '<generated API key>',
+  '账号管理': 'Accounts',
+  '导入账号': 'Import',
+  '请求日志': 'Request Logs',
+  '模型状态': 'Model Status',
+  '服务状态': 'Service Status',
+  '设置': 'Settings',
+  '关于': 'About',
+  '反馈': 'Feedback',
+  '服务可用': 'Operational',
+  '检测失败': 'Unavailable',
+  '尚未检测': 'Not checked',
+  '协议已支持': 'Supported',
+  '协议部分支持': 'Partial support',
+  '检测通过': 'passed',
+  '查看模型最近实测结果、成功率与协议可用性': 'Recent model checks, success rates, and protocol availability',
+  '每一次响应，清晰可见。': 'Every response. In view.',
+  '从对话到创作，查看模型最近实测结果与检测历史。': 'From conversation to creation. Explore the latest model checks and their history.',
+  '最近检测可用': 'Passing latest check',
+  '平均检测耗时': 'Average check latency',
+  '窗口内实测次数': 'Recorded checks',
+  '最近检测': 'Last checked',
+  '24 小时': '24 hours',
+  '7 天': '7 days',
+  '刷新状态': 'Refresh status',
+  '刷新仅读取已有记录，不会发起新的模型调用。': 'Refresh reads existing records without making a new model request.',
+  '文本与推理': 'Text & reasoning',
+  '图像创作': 'Image creation',
+  '视频生成': 'Video generation',
+  '最近检测耗时': 'Latest check latency',
+  '检测成功率': 'Check success',
+  '检测历史': 'Check history',
+  '等待首次记录': 'Awaiting first record',
+  'API 模型标识': 'API model ID',
+  '暂无记录': 'No checks yet',
+  '正在获取最近检测记录…': 'Loading recent checks…',
+  '尚无模型检测记录，请稍后回来。': 'No model checks yet. Please check back soon.',
+  '默认按天查看最近 7 天，可切换 24 小时查看小时记录。灰色表示没有检测数据，成功率只计算真实检测。': 'The default view groups the last 7 days by day. Switch to 24 hours for hourly detail. Gray means no checks; success rates count real observations only.',
+  '接口能力，一眼了解。': 'Your interfaces, at a glance.',
+  '检测次数': 'Checks',
+  '成功率': 'Success rate',
+  '平均耗时': 'Average latency',
+  '暂时无法获取检测记录，请稍后重试。': 'Check records are temporarily unavailable. Please retry.',
+  '查看账号池状态与快捷操作': 'Pool status & quick actions',
+  '账号状态': 'Account Status',
+  '账号总数': 'Total Accounts',
+  '活跃': 'Active',
+  '冷却': 'Cooldown',
+  '已过期': 'Expired',
+  'Token 用量': 'Token Usage',
+  '累计输入 Token': 'Total Input Tokens',
+  '累计输出 Token': 'Total Output Tokens',
+  '累计总 Token': 'Total Tokens',
+  '缓存 Token': 'Cached Tokens',
+  '快捷操作': 'Quick Actions',
+  '添加账号': 'Add Account',
+  '刷新全部 Token': 'Refresh All Tokens',
+  '从文件导入': 'Import from File',
+  '生成 API 密钥': 'Generate API Key',
+  '管理 Cline 账号池中的所有账号': 'Manage all accounts in the pool',
+  '测试全部': 'Test All',
+  '导出': 'Export',
+  '添加': 'Add',
+  '刷新': 'Refresh',
+  '邮箱': 'Email',
+  '状态': 'Status',
+  '请求': 'Requests',
+  '输入': 'Input',
+  '输出': 'Output',
+  '总 Token': 'Total Tokens',
+  '缓存': 'Cache',
+  '最后使用': 'Last Used',
+  '创建时间': 'Created',
+  '操作': 'Actions',
+  '加载中...': 'Loading...',
+  '通过 OAuth 登录、手动 Token 或批量文件添加账号': 'Add accounts via OAuth login, manual token, or batch file',
+  'OAuth 浏览器登录': 'OAuth Browser Login',
+  '手动输入 Token': 'Manual Token',
+  '批量导入': 'Batch Import',
+  '通过浏览器完成 OAuth 认证，支持 Google/GitHub/邮箱登录，自动获取 refreshToken。': 'Complete OAuth in the browser (Google/GitHub/email); refreshToken is fetched automatically.',
+  '开始 OAuth 登录': 'Start OAuth Login',
+  '等待浏览器授权...': 'Waiting for browser authorization...',
+  '点击链接（系统浏览器打开）:': 'Open this link (system browser):',
+  '并输入代码:': 'and enter the code:',
+  '输入已有的 Cline refreshToken，系统会自动验证并加入池。': 'Paste an existing Cline refreshToken; it will be validated and added.',
+  '邮箱（可选，留空自动生成）': 'Email (optional, auto-generated if empty)',
+  '批量导入多个账号。支持 JSON 数组或每行一个 token。': 'Import many accounts at once. Supports JSON arrays or one token per line.',
+  '导入全部': 'Import All',
+  '选择文件': 'Choose File',
+  '查看每次请求的 Token 消耗、缓存、耗时与流式速度': 'Token usage, caching, latency & streaming speed per request',
+  '时间': 'Time',
+  '账号': 'Account',
+  '协议': 'Protocol',
+  '模型': 'Model',
+  '总': 'Total',
+  '耗时': 'Duration',
+  '加载更多': 'Load More',
+  '管理 API 密钥、模型、代理配置与请求头': 'Manage API keys, models, proxy config & headers',
+  'API 密钥管理': 'API Keys',
+  '生成的密钥可用于客户端访问代理 API（作为 x-api-key 或 Authorization 头）。': 'Generated keys let clients call the proxy API (as x-api-key or Authorization header).',
+  '生成新密钥': 'Generate New Key',
+  '可用模型': 'Available Models',
+  '添加模型': 'Add Model',
+  '计费': 'Billing',
+  '付费 (pass)': 'Paid (pass)',
+  '免费 (free)': 'Free (free)',
+  '访问设置': 'Access Settings',
+  '监听地址': 'Listen Address',
+  '127.0.0.1（仅本机）': '127.0.0.1 (local only)',
+  '0.0.0.0（所有网卡）': '0.0.0.0 (all interfaces)',
+  '当前地址': 'Current Address',
+  '本机 IP（局域网访问地址）': 'Local IPs (LAN access)',
+  '管理后台密码（': 'Admin password (',
+  '未启用': 'Disabled',
+  '保存': 'Save',
+  '设置后访问管理后台需输入密码，默认无密码': 'Password required after enabling; none by default',
+  '代理配置': 'Proxy Config',
+  '默认模型': 'Default Model',
+  '轮询策略': 'Rotation Strategy',
+  '轮询 (round_robin)': 'Round robin',
+  '填满 (fill)': 'Fill',
+  '随机 (random)': 'Random',
+  '引擎版本': 'Engine Version',
+  '账号文件': 'Account File',
+  '请求头配置（模拟 Cline CLI 发出）': 'Request Headers (mimic Cline CLI)',
+  '这些请求头会附加到所有转发给 Cline API 的请求中，以模拟官方客户端行为。': 'Attached to every request forwarded to the Cline API.',
+  '请求头': 'Header',
+  '值': 'Value',
+  '添加请求头': 'Add Header',
+  '保存请求头': 'Save Headers',
+  '危险操作': 'Danger Zone',
+  '删除全部账号': 'Delete All Accounts',
+  '删除全部密钥': 'Delete All Keys',
+  '应用信息、使用指南与开源协议': 'App info, usage guide & license',
+  '应用信息': 'About App',
+  'Cline API 反向代理 · 多账号轮询 · 三协议兼容': 'Cline API reverse proxy · multi-account rotation · three protocols',
+  '快速上手': 'Quick Start',
+  '添加 Cline 账号': 'Add a Cline account',
+  '前往「导入账号」页面，通过 OAuth 登录或手动输入 refreshToken 添加账号。支持批量导入。': 'Go to Import and add via OAuth or a pasted refreshToken. Batch import supported.',
+  '生成 API Key': 'Generate an API Key',
+  '前往「设置」页面生成密钥。如不配置任何密钥，代理允许匿名访问。': 'Generate a key in Settings. With no keys, the proxy allows anonymous access.',
+  '配置客户端': 'Configure your client',
+  '在 Claude Code、Cline 等客户端中设置：': 'Configure in clients like Claude Code or Cline:',
+  '功能特性': 'Features',
+  '✅ 多账号轮询（轮询/填满/随机）': '✅ Multi-account rotation (round robin / fill / random)',
+  '✅ OpenAI & Anthropic 双协议': '✅ OpenAI & Anthropic dual protocol',
+  '✅ 429 冷却自动恢复': '✅ Auto-recovery from 429 cooldown',
+  '✅ 账号导出/导入（跨设备迁移）': '✅ Account export/import (device migration)',
+  '✅ OAuth 系统浏览器登录': '✅ OAuth login via system browser',
+  '✅ 请求日志与统计': '✅ Request logs & stats',
+  '✅ System Prompt 覆盖': '✅ System Prompt override',
+  '✅ 跨平台桌面端（Win/Mac/Linux）': '✅ Cross-platform desktop (Win/Mac/Linux)',
+  '项目链接': 'Links',
+  '仓库地址': 'Repository',
+  '问题反馈': 'Issues',
+  '下载更新': 'Releases',
+  '开源协议': 'License',
+  '数据与隐私': 'Data & Privacy',
+  '• 本程序仅在本地运行，默认监听': '• Runs locally, listens on',
+  '，不对外暴露。': ', not exposed externally.',
+  '• 账号凭据（refreshToken）存储在可执行文件同目录的': '• Credentials (refreshToken) stored as plaintext in',
+  '中，明文保存，请注意保护。': '; keep them safe.',
+  '• 所有 API 请求通过本机代理转发至 Cline 官方服务器，不经过任何第三方。': '• All API requests are proxied to Cline\'s official servers, never through third parties.',
+  '• 关闭窗口即停止服务，无后台驻留进程。': '• Closing the window stops the service; no background process.',
+  '用户管理': 'Users',
+  '管理可登录后台的管理员与用户账号': 'Manage admin and user accounts',
+  '刷新用户': 'Refresh Users',
+  '添加新用户': 'Add New User',
+  '用户列表': 'User List',
+  '用户名': 'Username',
+  '密码': 'Password',
+  '角色': 'Role',
+  '管理员': 'Admin',
+  '用户': 'User',
+  '重置密码': 'Reset Password',
+  '退出登录': 'Sign Out',
+  '暂无用户': 'No users',
+  '用户添加成功': 'User added',
+  '用户已删除': 'User deleted',
+  '密码重置成功': 'Password reset',
+  '请输入用户名': 'Please enter username',
+  '请输入密码': 'Please enter password',
+  '请输入用户 ': 'Please enter user ',
+  ' 的新密码：': '\'s new password:',
+  '欢迎回来': 'Welcome back',
+  '管理工作区': 'Admin workspace',
+  '登录你的 Cline API 工作区，继续管理服务。': 'Sign in to your Cline API workspace to continue managing services.',
+  '把复杂的模型路由，交给清晰的控制台。': 'Put complex model routing in a clear control plane.',
+  '集中管理账号池、模型与请求流量，让每一次请求都可追踪。': 'Manage accounts, models and request traffic in one place.',
+  '本地运行': 'Running locally',
+  '安全会话': 'Secure session',
+  '安全会话已启用': 'Secure session enabled',
+  '本地访问': 'Local access',
+  '初始密码仅限本机首次修改 · 请妥善保管管理员凭据': 'Initial password changes are local-only · Keep admin credentials safe',
+  '显示密码': 'Show password',
+  '隐藏密码': 'Hide password',
+  '确定删除用户 ': 'Are you sure you want to delete user ',
+  'Cline2API 管理后台': 'Cline2API Admin',
+  '请输入管理员账号与密码登录': 'Enter your admin account and password to sign in.',
+  '该后台已启用访问密码，请输入密码登录': 'Password protection is enabled. Enter the password to continue.',
+  '登 录': 'Sign In',
+  '即将恢复': 'recovering soon',
+  '需要登录': 'Login required',
+  '登录失败': 'Login failed',
+  '网络错误，请重试': 'Network error, please retry',
+  '已在系统浏览器中打开': 'Opened in system browser',
+  '打开失败: ': 'Open failed: ',
+  '测试': 'Test',
+  '重置': 'Reset',
+  '删除': 'Delete',
+  '从未使用': 'Never used',
+  '加载账号失败: ': 'Failed to load accounts: ',
+  ' · 输入 ': ' · Input ',
+  ' · 输出 ': ' · Output ',
+  ' · 缓存 ': ' · Cached ',
+  ' · 总 ': ' · Total ',
+  '输入 ': 'Input ',
+  '测试成功：': 'Test OK: ',
+  '测试失败：': 'Test failed: ',
+  '未知错误': 'Unknown error',
+  '测试失败: ': 'Test failed: ',
+  '正在测试全部账号，请稍候...': 'Testing all accounts, please wait...',
+  '全部测试通过：': 'All tests passed: ',
+  ' 个账号正常': ' accounts OK',
+  '测试完成：': 'Tests finished: ',
+  ' 成功 / ': ' OK / ',
+  ' 失败 · ': ' failed · ',
+  '确定删除此账号？': 'Delete this account?',
+  '账号已删除': 'Account deleted',
+  '删除失败: ': 'Delete failed: ',
+  '确定重置此账号？将恢复为活跃状态并刷新 Token，保留历史统计。': 'Reset this account? It will become active, tokens refreshed, history kept.',
+  '账号已重置': 'Account reset',
+  '重置失败: ': 'Reset failed: ',
+  '⚠️ 确定删除所有账号？不可撤销！': '⚠️ Delete ALL accounts? This cannot be undone!',
+  '全部账号已删除': 'All accounts deleted',
+  '全部 Token 已刷新': 'All tokens refreshed',
+  '刷新失败: ': 'Refresh failed: ',
+  '正在连接 WorkOS...': 'Connecting to WorkOS...',
+  '请在浏览器中打开链接并输入代码': 'Open the link in your browser and enter the code',
+  '账号添加成功！': 'Account added!',
+  '失败: ': 'Failed: ',
+  'OAuth 失败': 'OAuth failed',
+  '错误: ': 'Error: ',
+  'OAuth 失败: ': 'OAuth failed: ',
+  '请输入 refreshToken': 'Enter a refreshToken',
+  '账号添加成功: ': 'Account added: ',
+  '添加失败: ': 'Add failed: ',
+  '账号已导出': 'Accounts exported',
+  '导出失败: ': 'Export failed: ',
+  '请输入账号数据': 'Enter account data',
+  '导入完成': 'Import done',
+  '导入失败: ': 'Import failed: ',
+  '导入了 ': 'Imported ',
+  ' 个账号': ' accounts',
+  '点击复制': 'Click to copy',
+  '密钥已生成': 'Key generated',
+  '新密钥已生成（点击复制）': 'New key generated (click to copy)',
+  '暂无 API 密钥': 'No API keys yet',
+  '为每一个工具，创建专属的访问密钥。生成后仅展示一次完整密钥；订阅分组决定该 Key 能调度哪些账号。': 'Create a separate access key for each tool. The full key is shown once; the subscription group decides which accounts it can use.',
+  '创建密钥': 'Create key',
+  '名称 / 密钥': 'Name / key',
+  '仅向你展示完整密钥。请保存在可信的密码管理器中。': 'Your full key is shown only here. Save it in a trusted password manager.',
+  '关闭后从当前界面清除；不要将密钥分享给他人。': 'The key is cleared from this view when you close it. Keep it private.',
+  '复制密钥': 'Copy key',
+  '创建一个密钥，让你的工具连接公益模型。': 'Create a key so your tools can reach the proxy.',
+  '查看密钥': 'Reveal key',
+
+  '生成失败: ': 'Generate failed: ',
+  '确定删除此密钥？': 'Delete this key?',
+  '密钥已删除': 'Key deleted',
+  '确定删除所有 API 密钥？': 'Delete ALL API keys?',
+  '全部密钥已删除': 'All keys deleted',
+  '已复制到剪贴板': 'Copied to clipboard',
+  '配置已更新': 'Config updated',
+  '更新失败: ': 'Update failed: ',
+  '已保存，正在重启监听...': 'Saved, restarting listener...',
+  '监听已切换，请通过 ': 'Listener switched, use ',
+  ' 访问管理后台': ' to access the admin panel',
+  '保存失败: ': 'Save failed: ',
+  '密码至少 4 位': 'Password must be at least 4 characters',
+  '密码已设置，后台需要重新登录': 'Password set; admin requires re-login',
+  '已清除密码': 'Password cleared',
+  '存在有值无键的行，已忽略': 'Rows with a value but no key were ignored',
+  '请求头已保存': 'Headers saved',
+  '加载失败': 'Failed to load',
+  '请输入模型 ID': 'Enter a model ID',
+  '模型已添加: ': 'Model added: ',
+  '确认删除模型 ': 'Delete model ',
+  '模型已删除: ': 'Model deleted: ',
+  '版本 ': 'Version ',
+  '检查更新': 'Check for updates',
+  '检查 GitHub Releases 是否有新版本': 'Check GitHub Releases for updates',
+  '有新版本 ': 'New version ',
+  '检查中…': 'Checking…',
+  '检查失败：': 'Check failed: ',
+  '检查更新失败：': 'Update check failed: ',
+  '在线更新失败：': 'Online update failed: ',
+  '正在检查 GitHub Releases…': 'Checking GitHub Releases…',
+  '新版本 ': 'New version ',
+  ' 可用': ' available',
+  '已找到适配当前系统的更新文件。': 'A compatible update file was found for this system.',
+  '检测到新版本，但当前运行环境不能安全替换程序。': 'A new version is available, but this runtime cannot safely replace the program.',
+  '当前已是最新版本。': 'You are up to date.',
+  '更新完成，服务已重启。': 'Update complete; the service has restarted.',
+  '服务正在重启，请稍后手动刷新页面。': 'The service is restarting. Refresh the page in a moment.',
+  '在线更新会下载并替换当前程序，然后自动重启服务。是否继续？': 'Online update will download and replace the current program, then restart the service. Continue?',
+  '更新中…': 'Updating…',
+  '正在下载、校验并替换程序，请不要关闭页面…': 'Downloading, verifying and replacing the program. Keep this page open…',
+  '等待服务重启…': 'Waiting for the service to restart…',
+  '更新失败：': 'Update failed: ',
+  '立即更新': 'Update now',
+  '查看更新内容 ↗': 'View release notes ↗',
+  '当前版本': 'Current version',
+  '最新版本': 'Latest version',
+  '关闭': 'Close',
+  '当前已是最新版本': 'You are up to date',
+  '开发构建未注入版本号，无法安全判断升级目标': 'Development build has no release version; automatic updates are disabled.',
+  '本地开发/自编译版本仅支持检查更新；请使用本仓库的正式发行版，避免覆盖定制代码': 'Local development and self-built versions can only check for updates; use an official build from this repository to avoid overwriting customized code.',
+  '当前是 go run 开发进程，在线更新仅支持已发布的桌面可执行文件': 'This is a go run development process. Online replacement is available only for released desktop executables.',
+  'Windows 运行时暂不支持在线替换正在运行的可执行文件': 'Windows runtime does not yet support replacing the running executable online.',
+  'macOS 应用包请下载完整安装包更新，避免破坏应用签名': 'For macOS app bundles, download the complete package to avoid breaking the application signature.',
+  '容器内替换程序会在重建后丢失，请拉取新镜像并重新部署': 'Updates inside containers are lost after rebuilds; pull the new image and redeploy instead.',
+  '发布文件缺少有效的 SHA-256、大小或可信下载地址，不能在线安装': 'The release file lacks a valid SHA-256 digest, size or trusted download URL, so it cannot be installed online.',
+  '暂时无法连接 GitHub Releases': 'GitHub Releases is temporarily unavailable.',
+  'GitHub 检查限流，请稍后重试': 'GitHub rate limited the check; try again later.',
+  '当前仓库尚未发布正式 Release，或仓库不可访问': 'No official release is available yet, or the repository is unreachable.',
+  '最新 Release 缺少有效版本号': 'The latest release has no valid version number.',
+  '更新请求重定向次数过多': 'The update request was redirected too many times.',
+  '发布文件地址为空': 'The release file URL is empty.',
+  '未找到当前系统对应的发布文件': 'No release file was found for this system.',
+  '发布版本已变化，请重新检查并确认': 'The release changed; check again and confirm the new version.',
+  '（本机网卡）': ' (local NIC)',
+  '已启用': 'Enabled',
+  '完成': 'Done',
+  '失败': 'Failed',
+  'Token 未知': 'Token unknown',
+  '加载日志失败: ': 'Failed to load logs: ',
+  '测试中...': 'Testing...',
+  '启动中...': 'Starting...',
+  '从 Cline 同步模型': 'Sync Models from Cline',
+  '模型同步': 'Model Sync',
+  '上次同步': 'Last synced',
+  '从未同步': 'Never synced',
+  '新增模型': 'Added models',
+  '更新模型': 'Updated models',
+  '移除模型': 'Removed models',
+  '模型无变化': 'No model changes',
+  '模型列表已更新': 'Model list updated',
+  '同步中...': 'Syncing...',
+  '暂无模型': 'No models',
+  '模型统计': 'Model Usage',
+  '按模型统计（仅免费模型）': 'Per-model usage (free models)',
+  '免费模型': 'Free models',
+  '展开': 'Expand',
+  '收起': 'Collapse',
+  '模型冷却中': 'Model cooling',
+  '模型冷却中，约 ': 'Model cooling, ~',
+  '后释放': ' until release',
+  '暂无数据': 'No data yet',
+  // opencode 免费模型
+  '从 opencode 同步模型': 'Sync Models from opencode',
+  'opencode 模型列表已更新': 'opencode model list updated',
+  'opencode 免费模型 · 今日用量': 'opencode Free Models · Today',
+  '今日请求数': 'Requests today',
+  '今日输入 Token': 'Input tokens today',
+  '今日输出 Token': 'Output tokens today',
+  '今日总 Token': 'Total tokens today',
+  '启用 opencode': 'Enable opencode',
+  '启用': 'Enabled',
+  '停用': 'Disabled',
+  'API Key': 'API Key',
+  'Base URL': 'Base URL',
+  '最大并发': 'Max concurrency',
+  '重试次数': 'Retries',
+  '故障转移': 'Failover',
+  '开启（连续失败后暂走 Cline 池）': 'On (temporarily route to Cline pool after consecutive failures)',
+  '失败阈值（次）': 'Failure threshold',
+  '转移窗口（分钟）': 'Failover window (min)',
+  '自动上下文压缩': 'Auto context compaction',
+  '开启（超限自动摘要）': 'On (auto summary when over limit)',
+  '压缩缓冲 Token': 'Compaction buffer (tokens)',
+  '尾部保留 Token': 'Tail keep tokens',
+  '摘要最大 Token': 'Max summary tokens',
+  '保存 opencode 配置': 'Save opencode Config',
+  'opencode 配置已保存': 'OpenCode config saved',
+  'opencode 出口代理': 'OpenCode Egress Proxies',
+  '发往 opencode 的请求可经代理池轮询出口；命中限流时冷却当前出口并自动跳过。支持 http / https / socks5 / socks5h，每行一个，如 ': 'Requests to opencode can egress through a rotating proxy pool; the current proxy is cooled down and skipped on rate limits. Supports http / https / socks5 / socks5h, one per line, e.g. ',
+  '代理策略': 'Proxy strategy',
+  '出口冷却状态': 'Egress cooldowns',
+  '代理列表': 'Proxy list',
+  '无冷却': 'None cooling',
+  '已停用': 'Paused',
+  '故障转移中（opencode 暂不可用，请求走 Cline 池）': 'Failover active (opencode unavailable, requests routed to Cline pool)',
+  '正常': 'Healthy',
+  '已同步模型': 'Models synced',
+  '接入 opencode（zen）免费模型。按请求中的模型名自动分流：免费模型走 opencode 上游，付费模型直接拒绝，其余走 Cline 账号池。': 'Integrates opencode (zen) free models. Requests are routed automatically by model name: free models go to the opencode upstream, paid models are rejected, everything else goes to the Cline account pool.',
+  // 模型分组
+  'opencode · 免费模型': 'opencode · Free Models',
+  'opencode · 付费模型': 'opencode · Paid Models',
+  'Cline · 免费模型': 'Cline · Free Models',
+  'Cline · 付费模型': 'Cline · Paid Models',
+  'Cline · Free 分组': 'Cline · Free group',
+  'Cline · Pass 分组': 'Cline · Pass group',
+  'Cline · 推荐模型': 'Cline · Recommended models',
+  '用户自定义': 'User Custom',
+  'JSON 数组格式：[{"refreshToken":"...","email":"..."}]': 'JSON array format: [{"refreshToken":"...","email":"..."}]',
+  '暂无请求日志': 'No request logs yet',
+  'opencode 免费模型': 'opencode Free Models',
+  '发往 opencode 的请求可经代理池轮询出口；命中限流时冷却当前出口并自动跳过。支持 http / https / socks5 / socks5h，每行一个，如': 'Requests to opencode can egress through a rotating proxy pool; the current proxy is cooled down and skipped on rate limits. Supports http / https / socks5 / socks5h, one per line, e.g.',
+  '普通用户 (user)': 'Standard user (user)',
+  '管理员 (admin)': 'Administrator (admin)',
+  '添加用户': 'Add user',
+  '取消': 'Cancel',
+  '账号概览': 'Account overview',
+  '批量操作进度': 'Bulk operation progress',
+  '粘贴 refreshToken': 'Paste refreshToken',
+  '如 deepseek/deepseek-v4-flash': 'e.g. deepseek/deepseek-v4-flash',
+  '用户名，如 admin2': 'Username, e.g. admin2',
+  '初始密码': 'Initial password',
+  'Cline2API 产品介绍': 'Cline2API product overview',
+  '系统状态': 'System status',
+  '默认 admin': 'Default admin',
+  '输入密码': 'Enter password',
+  '尚未生成 API 密钥': 'No API key has been generated yet',
+  '已复制': 'Copied',
+  '复制失败': 'Copy failed',
+  '客户端配置已复制': 'Client configuration copied',
+  '还没有 API 密钥': 'No API keys yet',
+  '已保存 ': 'Saved ',
+  ' 个请求头': ' headers',
+  '模型同步失败': 'Model sync failed',
+  '（无可用模型）': '(No models available)',
+  '加载用户列表失败: ': 'Failed to load users: ',
+  '无法确认最新版本，请稍后重试。': 'Unable to determine the latest version. Please try again later.',
+  '点击展开/折叠': 'Click to expand/collapse',
+};
+let LANG = 'zh';
+const LC = () => LANG === 'en' ? 'en-US' : 'zh-CN';
+function detectLang(){
+  try { const m = document.cookie.match(/cline_admin_lang=(zh|en)/); if (m) return m[1]; } catch(e){}
+  try { const l = localStorage.getItem('cline_admin_lang'); if (l==='en'||l==='zh') return l; } catch(e){}
+  return (navigator.language||'').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+}
+function t(s){ if (LANG==='en' && s && I18N[s]) return I18N[s]; return s; }
+// 反向映射：英文 → 中文（用于切回中文时还原静态文本）
+const I18N_REV = Object.keys(I18N).reduce((acc, k) => { acc[I18N[k]] = k; return acc; }, {});
+// Keep the source text for every node/attribute. Reverse-translating the
+// rendered English is ambiguous when different Chinese labels share one
+// English value (for example 管理 and 管理员 both used to become Admin).
+const ORIGINAL_TEXT = new WeakMap();
+const ORIGINAL_ATTRS = new WeakMap();
+const LOCALIZED_TEXT = new Map();
+function translatedUIValue(value, previous) {
+  // Dynamic renderers can replace text or attributes between language switches.
+  // Only reuse a remembered source while the last rendered value is unchanged.
+  let source = previous && value === previous.rendered ? previous.source : value;
+  const trimmed = source.trim();
+  if (!previous || value !== previous.rendered) {
+    if (!Object.prototype.hasOwnProperty.call(I18N, trimmed) && I18N_REV[trimmed]) {
+      source = source.replace(trimmed, () => I18N_REV[trimmed]);
+    }
+  }
+  const key = source.trim();
+  return {source, rendered: key ? source.replace(key, () => t(key)) : source};
+}
+function setLocalizedText(id, render) {
+  LOCALIZED_TEXT.set(id, render);
+  const el = _(id);
+  if (el) el.textContent = render();
+}
+function applyLang(){
+  if (LANG === 'en') {
+    document.title = 'Cline Proxy Admin';
+  } else {
+    document.title = 'Cline 代理管理面板';
+  }
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const n of nodes){
+    if (n.parentElement.closest('script,style,textarea,[data-i18n-ignore]')) continue;
+    const record = translatedUIValue(n.nodeValue || '', ORIGINAL_TEXT.get(n));
+    ORIGINAL_TEXT.set(n, record);
+    if (n.nodeValue !== record.rendered) n.nodeValue = record.rendered;
+  }
+  document.querySelectorAll('[title],[placeholder],[aria-label]').forEach(el=>{
+    if (el.closest('[data-i18n-ignore]')) return;
+    let originals = ORIGINAL_ATTRS.get(el);
+    if (!originals) { originals = new Map(); ORIGINAL_ATTRS.set(el, originals); }
+    ['title','placeholder','aria-label'].forEach(attr=>{
+      if (!el.hasAttribute(attr)) return;
+      const record = translatedUIValue(el.getAttribute(attr) || '', originals.get(attr));
+      originals.set(attr, record);
+      el.setAttribute(attr, record.rendered);
+    });
+  });
+  LOCALIZED_TEXT.forEach((render, id) => { const el = _(id); if (el) el.textContent = render(); });
+  _('langZh').classList.toggle('active', LANG === 'zh');
+  if (_('langEn')) _('langEn').classList.toggle('active', LANG === 'en');
+}
+function setLang(l){
+  LANG = l;
+  try { document.cookie = 'cline_admin_lang='+l+';path=/admin;max-age=31536000'; } catch(e){}
+  try { localStorage.setItem('cline_admin_lang', l); } catch(e){}
+  document.documentElement.lang = (l==='en')?'en':'zh-CN';
+  // 即时切换：静态文本 + title 属性翻译 + 重新渲染动态数据，不整页刷新
+  applyLang();
+  loadStats();
+  loadAccounts();
+  if (typeof loadAvailability === 'function') loadAvailability();
+  loadRequestLogs(true);
+  if (_('modelsList')) loadModels();
+  if (_('settingDefModel')) loadConfig();
+  refreshUpdateButtonLabel();
+  toast(l === 'en' ? 'Language switched to English' : '语言已切换为中文', 'success');
+}
+LANG = detectLang();
+document.documentElement.lang = (LANG==='en')?'en':'zh-CN';
+// ===== /i18n =====
+const API = '/admin/api';
+
+const _ = id => document.getElementById(id);
+const esc = s => { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; };
+const formatNumber = n => new Intl.NumberFormat(LC()).format(n || 0);
+const formatTokenCount = n => {
+  const value = Number(n) || 0;
+  if (value < 1000) return String(value);
+  const units = [['B', 1e9], ['M', 1e6], ['K', 1e3]];
+  for (const [unit, size] of units) {
+    if (value >= size) return (value / size).toFixed(1).replace(/\.0$/, '') + unit;
+  }
+  return String(value);
+};
+
+function toast(msg, t) {
+  const el = _('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + t + ' show';
+  setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// 格式化冷却倒计时：返回紧凑的 "3.2h" 格式
+function formatCooldown(isoTime) {
+  const until = new Date(isoTime);
+  const diff = until - new Date();
+  if (diff <= 0) return t('即将恢复');
+  const hours = diff / 3600000;
+  if (hours < 1) return Math.ceil(diff / 60000) + 'm';
+  return hours.toFixed(1) + 'h';
+}
+
+let currentUser = null;
+function isAdmin() { return currentUser && currentUser.role === 'admin'; }
+function canOpenTab(name) { return isAdmin() || !['import', 'settings', 'users'].includes(name); }
+
+// ========== 导航 ==========
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    if (el.classList.contains('active')) return;
+    switchTab(el.dataset.tab);
+  });
+});
+
+function switchTab(name) {
+  if (!currentUser || currentUser.mustChangePassword || !canOpenTab(name)) return;
+  document.querySelectorAll('.nav-item').forEach(e => {
+    e.classList.toggle('active', e.dataset.tab === name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(e => e.style.display = 'none');
+  _('tab-' + name).style.display = 'block';
+  if (name === 'dashboard') { loadStats(); loadAccounts(); }
+  if (name === 'accounts') loadAccounts();
+  if (name === 'channels') loadAvailability();
+  if (name === 'logs') loadRequestLogs(true);
+  if (name === 'settings') { loadKeys(); loadModels(); loadConfig(); loadOcConfig(); }
+  if (name === 'users') loadUsers();
+}
+
+// 导入子标签
+document.querySelectorAll('#importTabs .tab').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('#importTabs .tab').forEach(e => e.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('#import-oauth,#import-token,#import-batch').forEach(e => e.classList.remove('active'));
+    _('import-' + el.dataset.tab).classList.add('active');
+  });
+});
+
+// ========== API 请求 ==========
+async function api(method, path, body) {
+  const opts = { method, headers: {}, credentials: 'same-origin' };
+  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  const res = await fetch(API + path, opts);
+  if (res.status === 401) {
+    showLogin();
+    throw new Error(t('需要登录'));
+  }
+  const data = await res.json();
+  if (!data.success && data.error) throw new Error(data.error);
+  return data;
+}
+
+// ========== 后台登录 ==========
+function showLogin() {
+  currentUser = null;
+  if (_('acDetail') && _('acDetail').open) _('acDetail').close();
+  _('passwordOverlay').style.display = 'none';
+  const ov = _('loginOverlay');
+  if (ov && ov.style.display !== 'flex') {
+    ov.style.display = 'flex';
+    ov.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('login-active');
+    setTimeout(() => {
+      const u = _('loginUsername');
+      if (u && !u.value) u.focus();
+      else if (_('loginPassword')) _('loginPassword').focus();
+    }, 50);
+  }
+}
+
+function toggleLoginPassword() {
+  const input = _('loginPassword');
+  const toggle = _('loginPasswordToggle');
+  if (!input || !toggle) return;
+  const visible = input.type === 'password';
+  input.type = visible ? 'text' : 'password';
+  const label = visible ? t('隐藏密码') : t('显示密码');
+  toggle.setAttribute('aria-label', label);
+  toggle.setAttribute('title', label);
+}
+
+async function submitLogin(event) {
+  if (event) event.preventDefault();
+  const username = _('loginUsername') ? _('loginUsername').value.trim() : '';
+  const pwd = _('loginPassword').value;
+  if (!pwd) {
+    _('loginError').textContent = t('请输入密码');
+    _('loginPassword').focus();
+    return false;
+  }
+  _('loginError').textContent = '';
+  const submit = _('loginSubmit');
+  if (submit) { submit.disabled = true; submit.setAttribute('aria-busy', 'true'); }
+  try {
+    const res = await fetch(API + '/login', {
+      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: username || 'admin', password: pwd })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      location.reload();
+    } else {
+      _('loginError').textContent = data.error || t('登录失败');
+      _('loginPassword').value = '';
+      _('loginPassword').focus();
+    }
+  } catch (e) { _('loginError').textContent = t('网络错误，请重试'); }
+  finally {
+    if (submit) { submit.disabled = false; submit.removeAttribute('aria-busy'); }
+  }
+  return false;
+}
+
+async function logoutAdmin() {
+  try {
+    await fetch(API + '/logout', { method: 'POST', credentials: 'same-origin' });
+  } catch (e) {}
+  location.reload();
+}
+
+// 用系统默认浏览器打开外部链接（桌面 WebView 内导航不会跳外部浏览器，需走后端）
+async function openExternal(url) {
+  if (!isAdmin()) { window.open(url, '_blank', 'noopener,noreferrer'); return; }
+  try {
+    await api('GET', '/open-external?url=' + encodeURIComponent(url));
+    toast(t('已在系统浏览器中打开'), 'success');
+  } catch (e) { toast(t('打开失败: ') + e.message, 'error'); }
+}
+
+// ========== 在线更新 ==========
+let latestUpdateInfo = null;
+let updatePollTimer = null;
+
+function updateVersionLabel(value) {
+  if (!value) return '-';
+  return /^v/i.test(value) ? value : 'v' + value;
+}
+
+function refreshUpdateButtonLabel() {
+  const button = _('updateCheckButton');
+  if (!button) return;
+  button.textContent = button.classList.contains('checking') ? t('检查中…') : latestUpdateInfo && latestUpdateInfo.hasUpdate
+    ? (t('有新版本 ') + updateVersionLabel(latestUpdateInfo.latestVersion))
+    : t('检查更新');
+}
+
+function localizeUpdateNotes(notes) {
+  if (!notes) return '';
+  // Release notes are fetched from GitHub and may not have an English variant.
+  // Never leak a full Chinese Markdown document into the English interface.
+  if (LANG === 'en' && /[\u3400-\u9fff]/.test(notes)) {
+    return 'Release notes are available on the GitHub release page.';
+  }
+  return notes;
+}
+
+function localizeUpdateText(value) {
+  if (!value) return '';
+  if (LANG !== 'en') return value;
+  if (I18N[value]) return I18N[value];
+  if (/GitHub.*限流/.test(value)) return t('GitHub 检查限流，请稍后重试');
+  if (/尚未发布正式 Release|仓库不可访问/.test(value)) return t('当前仓库尚未发布正式 Release，或仓库不可访问');
+  const http = value.match(/GitHub API 返回 HTTP (\d+)/);
+  if (http) return 'GitHub API returned HTTP ' + http[1] + '.';
+  return /[\u3400-\u9fff]/.test(value) ? 'The update service returned a localized error. Please try again later.' : value;
+}
+
+function closeUpdateDialog() {
+  if (updatePollTimer) { clearTimeout(updatePollTimer); updatePollTimer = null; }
+  const overlay = _('updateOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function openUpdateRelease() {
+  if (latestUpdateInfo && latestUpdateInfo.releaseURL) openExternal(latestUpdateInfo.releaseURL);
+}
+
+function renderUpdateInfo(info, showDialog) {
+  latestUpdateInfo = info;
+  const button = _('updateCheckButton');
+  if (button) {
+    button.classList.toggle('has-update', !!info.hasUpdate);
+    refreshUpdateButtonLabel();
+  }
+  if (!showDialog) return;
+  _('updateCurrentVersion').textContent = updateVersionLabel(info.currentVersion);
+  _('updateLatestVersion').textContent = updateVersionLabel(info.latestVersion);
+  setLocalizedText('updateTitle', () => info.hasUpdate ? (t('新版本 ') + updateVersionLabel(info.latestVersion) + t(' 可用')) : t('检查更新'));
+  const warning = _('updateWarning');
+  warning.style.display = info.warning || info.unsupportedReason ? 'block' : 'none';
+  setLocalizedText('updateWarning', () => localizeUpdateText(info.warning || info.unsupportedReason || ''));
+  const notes = _('updateNotes');
+  const localizedNotes = localizeUpdateNotes(info.releaseNotes);
+  notes.style.display = localizedNotes ? 'block' : 'none';
+  setLocalizedText('updateNotes', () => localizeUpdateNotes(info.releaseNotes));
+  const apply = _('applyUpdateButton');
+  const checkFailed = info.checkStatus === 'error' || !info.latestVersion;
+  apply.style.display = !checkFailed && info.hasUpdate && info.supported ? '' : 'none';
+  apply.disabled = false;
+  _('releaseNotesButton').style.display = info.releaseURL ? '' : 'none';
+  setLocalizedText('updateStatus', () => checkFailed ? t('无法确认最新版本，请稍后重试。') : info.hasUpdate ? (info.supported ? t('已找到适配当前系统的更新文件。') : t('检测到新版本，但当前运行环境不能安全替换程序。')) : t('当前已是最新版本。'));
+}
+
+async function checkForUpdates(forceNetwork) {
+  const button = _('updateCheckButton');
+  if (button) { button.classList.add('checking'); button.disabled = true; button.textContent = t('检查中…'); }
+  if (forceNetwork) {
+    _('updateOverlay').style.display = 'flex';
+    setLocalizedText('updateTitle', () => t('检查更新'));
+    setLocalizedText('updateStatus', () => t('正在检查 GitHub Releases…'));
+    for (const id of ['updateWarning', 'updateNotes']) {
+      setLocalizedText(id, () => '');
+      _(id).style.display = 'none';
+    }
+    _('applyUpdateButton').style.display = 'none';
+    _('releaseNotesButton').style.display = 'none';
+  }
+  try {
+    const d = await api('GET', '/system/update');
+    renderUpdateInfo(d.data || {}, forceNetwork);
+  } catch (e) {
+    const message = localizeUpdateText(e.message);
+    if (forceNetwork) setLocalizedText('updateStatus', () => t('检查失败：') + localizeUpdateText(e.message));
+    toast(t('检查更新失败：') + message, 'error');
+  } finally {
+    if (button) {
+      button.classList.remove('checking');
+      button.disabled = false;
+      refreshUpdateButtonLabel();
+    }
+  }
+}
+
+function openUpdateCheck() {
+  const overlay = _('updateOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  checkForUpdates(true);
+}
+
+function pollAfterOnlineUpdate(targetVersion) {
+  let attempts = 0;
+  const target = String(targetVersion || '').replace(/^v/i, '');
+  const poll = async () => {
+    attempts++;
+    try {
+      const response = await fetch('/health', {cache:'no-store'});
+      if (response.ok) {
+        const health = await response.json();
+        if (String(health.version || '').replace(/^v/i, '') === target) {
+          setLocalizedText('updateStatus', () => t('更新完成，服务已重启。'));
+          setTimeout(() => location.reload(), 500);
+          return;
+        }
+      }
+    } catch (e) { /* 重启窗口内连接失败是正常现象 */ }
+    if (attempts >= 60) {
+      setLocalizedText('updateStatus', () => t('服务正在重启，请稍后手动刷新页面。'));
+      return;
+    }
+    updatePollTimer = setTimeout(poll, 1500);
+  };
+  updatePollTimer = setTimeout(poll, 1800);
+}
+
+async function applyOnlineUpdate() {
+  if (!latestUpdateInfo || !latestUpdateInfo.hasUpdate || !latestUpdateInfo.supported) return;
+  if (!confirm(t('在线更新会下载并替换当前程序，然后自动重启服务。是否继续？'))) return;
+  const apply = _('applyUpdateButton');
+  apply.disabled = true;
+  setLocalizedText('applyUpdateButton', () => t('更新中…'));
+  setLocalizedText('updateStatus', () => t('正在下载、校验并替换程序，请不要关闭页面…'));
+  try {
+    const d = await api('POST', '/system/update/apply', {
+      version: latestUpdateInfo.latestVersion,
+      confirm: true,
+    });
+    const result = d.data || {};
+    setLocalizedText('applyUpdateButton', () => t('等待服务重启…'));
+    pollAfterOnlineUpdate(result.latestVersion);
+  } catch (e) {
+    apply.disabled = false;
+    setLocalizedText('applyUpdateButton', () => t('立即更新'));
+    const message = localizeUpdateText(e.message);
+    setLocalizedText('updateStatus', () => t('更新失败：') + localizeUpdateText(e.message));
+    toast(t('在线更新失败：') + message, 'error');
+  }
+}
+
+// ========== 仪表盘 ==========
+let clientAccessKey = '';
+let clientAccessBase = '';
+let clientAccessModel = '';
+
+function formatRelativeTime(value) {
+  if (!value) return t('暂无');
+  const diff = Math.max(0, Date.now() - new Date(value).getTime());
+  const seconds = Math.round(diff / 1000);
+  if (seconds < 60) return seconds + t(' 秒前');
+  if (seconds < 3600) return Math.floor(seconds / 60) + t(' 分钟前');
+  return new Intl.DateTimeFormat(LC(), {month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit'}).format(new Date(value));
+}
+
+function filterAccountsByStatus(status) {
+  const select = _('acStatus');
+  if (select) { select.value = status; accountFiltersChanged(); }
+}
+
+function renderDashboardHealth(s) {
+  const health = s.health || {};
+  const status = health.status || 'waiting';
+  const labels = {operational:t('运行正常'), degraded:t('最近请求失败'), waiting:t('等待首个请求')};
+  _('healthStatusText').textContent = labels[status] || t('状态未知');
+  _('healthStatusDot').className = 'health-status-dot ' + status;
+  _('healthAddress').textContent = s.address || '-';
+  _('healthStrategy').textContent = ({round_robin:'Round robin',fill:'Fill',random:'Random'})[s.strategy] || s.strategy || '-';
+  _('healthLastSuccess').textContent = health.lastSuccessAt ? formatRelativeTime(health.lastSuccessAt) : t('暂无请求');
+  _('healthLastFailure').textContent = health.lastFailureAt ? formatRelativeTime(health.lastFailureAt) : t('暂无失败');
+  _('healthStatusHint').textContent = status === 'degraded' && health.lastError ? health.lastError : (health.lastRequestAt ? t('最近请求') + ' ' + formatRelativeTime(health.lastRequestAt) : t('代理已启动，等待第一条请求'));
+}
+
+async function loadClientAccess(s) {
+  clientAccessBase = s.baseURL || (location.origin + '/v1');
+  clientAccessModel = s.defaultModel || 'cline-auto';
+  _('clientBaseUrl').textContent = clientAccessBase;
+  _('clientModel').textContent = clientAccessModel;
+  try {
+    const d = await api('GET', '/keys');
+    const records = d.data.keyRecords || [];
+    clientAccessKey = (d.data.keys || [])[0] || '';
+    _('clientApiKey').textContent = clientAccessKey ? clientAccessKey.slice(0, 10) + '…' + clientAccessKey.slice(-4) : t('尚未生成');
+    _('clientAccessHint').textContent = clientAccessKey ? (t('已配置 ') + records.length + t(' 个密钥，可按分组限制 Free / Pass 账号。')) : t('没有密钥时，代理允许匿名访问；生产或局域网使用建议生成密钥。');
+  } catch (e) {
+    _('clientApiKey').textContent = t('暂时无法读取');
+  }
+}
+
+async function copyClientValue(kind) {
+  const value = kind === 'base' ? clientAccessBase : clientAccessKey;
+  if (!value) { toast(t('尚未生成 API 密钥'), 'info'); return; }
+  try { await navigator.clipboard.writeText(value); toast(t('已复制'), 'success'); } catch (e) { toast(t('复制失败'), 'error'); }
+}
+
+async function copyClientConfig() {
+  const text = 'Base URL: ' + clientAccessBase + '\nAPI Key:  ' + (clientAccessKey || t('<后台生成的 Key>')) + '\nModel:    ' + clientAccessModel;
+  try { await navigator.clipboard.writeText(text); toast(t('客户端配置已复制'), 'success'); } catch (e) { toast(t('复制失败'), 'error'); }
+}
+
+async function loadStats() {
+  try {
+    const d = await api('GET', '/stats');
+    const s = d.data;
+    _('statTotal').textContent = s.total;
+    _('statActive').textContent = s.active;
+    _('statCooldown').textContent = s.cooldown;
+    _('statExpired').textContent = s.expired;
+    _('statPromptTokens').textContent = formatTokenCount(s.promptTokens);
+    _('statCompletionTokens').textContent = formatTokenCount(s.completionTokens);
+    _('statTotalTokens').textContent = formatTokenCount(s.totalTokens);
+    _('statCachedTokens').textContent = formatTokenCount(s.cachedTokens);
+    const oc = s.opencodeToday || {};
+    _('statOcRequests').textContent = oc.requests != null ? oc.requests : '-';
+    _('statOcInputTokens').textContent = formatTokenCount(oc.inputTokens || 0);
+    _('statOcOutputTokens').textContent = formatTokenCount(oc.outputTokens || 0);
+    _('statOcTotalTokens').textContent = formatTokenCount(oc.totalTokens || 0);
+    const hasAccounts = Number(s.total) > 0;
+    _('dashboard-onboarding').style.display = hasAccounts ? 'none' : 'grid';
+    _('dashboard-metrics').style.display = hasAccounts ? 'grid' : 'none';
+    _('dashboard-actions').style.display = hasAccounts ? '' : 'none';
+    _('refreshTokensAction').disabled = !hasAccounts;
+    renderDashboardHealth(s);
+    await loadClientAccess(s);
+    if (s.updatedAt) _('dashboardLastUpdated').textContent = t('更新于 ') + formatRelativeTime(s.updatedAt);
+    if (s.version) _('settingVersion').value = s.version;
+    if (s.strategy) _('settingStrategy').value = s.strategy;
+  } catch (e) {
+    const hint = _('healthStatusHint');
+    if (hint) hint.textContent = t('数据加载失败：') + e.message;
+    const dot = _('healthStatusDot');
+    if (dot) dot.className = 'health-status-dot degraded';
+    const text = _('healthStatusText');
+    if (text) text.textContent = t('无法读取状态');
+  }
+}
+
+// ACCOUNTS_JS
+
+// ========== OAuth 登录 ==========
+async function startOAuth() {
+  const btn = _('oauthBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading"></span> ' + t('启动中...');
+  _('oauthProgress').style.display = 'block';
+  _('oauthResult').style.display = 'none';
+  _('oauthStatus').textContent = t('正在连接 WorkOS...');
+  try {
+    const d = await api('POST', '/oauth/start', {subscription:_('importSubscription').value});
+    const s = d.data;
+    _('oauthStatus').textContent = t('请在浏览器中打开链接并输入代码');
+    const u = _('oauthUrl');
+    u.textContent = s.verificationUri;
+    u.href = '#';
+    u.onclick = async function(e) { e.preventDefault(); await openExternal(s.verificationUri); };
+    _('oauthUserCode').textContent = s.userCode;
+    const poll = setInterval(async () => {
+      try {
+        const r = await api('GET', '/oauth/status?sessionId=' + s.sessionId);
+        if (r.data.done) {
+          clearInterval(poll);
+          btn.disabled = false;
+          btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>' + t('开始 OAuth 登录');
+          if (r.data.success) {
+            _('oauthProgress').style.display = 'none';
+            _('oauthResult').innerHTML = '<div style="color:var(--green);font-weight:600">✓ ' + t('账号添加成功: ')+ esc(r.data.email) + ' · ' + subscriptionLabel(r.data.subscription) + '</div>';
+            _('oauthResult').style.display = 'block';
+            loadAccounts(); loadStats();
+            toast(t('账号添加成功！'), 'success');
+          } else {
+            _('oauthStatus').textContent = t('失败: ') + (r.data.error || t('未知错误'));
+            toast(t('OAuth 失败'), 'error');
+          }
+        }
+      } catch(e) {}
+    }, 2000);
+  } catch (e) {
+    btn.disabled = false;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>' + t('开始 OAuth 登录');
+    _('oauthStatus').textContent = t('错误: ') + e.message;
+    toast(t('OAuth 失败: ') + e.message, 'error');
+  }
+}
+
+// ========== Token 导入 ==========
+async function addByToken() {
+  const token = _('tokenInput').value.trim();
+  if (!token) { toast(t('请输入 refreshToken'), 'error'); return; }
+  const email = _('tokenEmail').value.trim();
+  try {
+    const d = await api('POST', '/accounts/add', { refreshToken: token, email: email || undefined, subscription:_('importSubscription').value });
+    toast(t('账号添加成功: ') + (d.data.email || ''), 'success');
+    _('tokenInput').value = '';
+    _('tokenEmail').value = '';
+    loadAccounts(); loadStats();
+  } catch (e) { toast(t('添加失败: ') + e.message, 'error'); }
+}
+
+// ========== 导出账号 ==========
+async function exportAccounts() {
+  try {
+    const res = await fetch(API + '/accounts/export');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'cline-accounts-export.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast(t('账号已导出'), 'success');
+  } catch (e) { toast(t('导出失败: ') + e.message, 'error'); }
+}
+
+// ========== 批量导入 ==========
+// 解析导入数据：支持导出格式 {tokens:[...]}、JSON 数组 [...]、单行一个 token 的纯文本
+function parseImportData(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // 纯文本：每行一个 refreshToken
+    return text.split('\n').filter(t => t.trim()).map(t => ({ refreshToken: t.trim() }));
+  }
+  // 导出格式 {tokens:[...], exportedAt:...}
+  if (parsed && !Array.isArray(parsed) && Array.isArray(parsed.tokens)) {
+    return parsed.tokens;
+  }
+  // JSON 数组
+  if (Array.isArray(parsed)) {
+    return parsed;
+  }
+  // 单个对象
+  return [parsed];
+}
+
+async function batchImport() {
+  const raw = _('batchInput').value.trim();
+  if (!raw) { toast(t('请输入账号数据'), 'error'); return; }
+  const tokens = parseImportData(raw);
+  try {
+    const d = await api('POST', '/batch-import', { tokens: tokens.map(a => ({...a, subscription:a.subscription || _('importSubscription').value})) });
+    toast(d.message || t('导入完成'), 'success');
+    _('batchInput').value = '';
+    loadAccounts(); loadStats();
+  } catch (e) { toast(t('导入失败: ') + e.message, 'error'); }
+}
+
+async function handleFileImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  const tokens = parseImportData(text);
+  try {
+    const d = await api('POST', '/batch-import', { tokens: tokens.map(a => ({...a, subscription:a.subscription || _('importSubscription').value})) });
+    toast(d.message || t('导入了 ') + tokens.length + t(' 个账号'), 'success');
+    loadAccounts(); loadStats();
+  } catch (e) { toast(t('导入失败: ') + e.message, 'error'); }
+  event.target.value = '';
+}
+
+// ========== API 密钥管理 ==========
+async function loadKeys() {
+  try {
+    const d = await api('GET', '/keys');
+    const keys = d.data.keyRecords || [];
+    const el = _('keysList');
+    if (!keys.length) {
+      el.innerHTML = '<div class="empty-state keys-empty"><strong>' + t('还没有 API 密钥') + '</strong><p>' + t('创建一个密钥，让你的工具连接公益模型。') + '</p><button class="btn btn-primary" onclick="generateKey()">' + t('创建密钥') + '</button></div>';
+      return;
+    }
+    const groupLabel = s => s === 'free,pass' ? 'Free + Pass' : s === 'free' ? t('仅 Free') : s === 'pass' ? t('仅 Pass') : t('未授权');
+    el.innerHTML = '<div class="keys-table-wrap"><table class="keys-table"><thead><tr>' +
+      '<th>' + t('名称 / 密钥') + '</th><th>' + t('订阅分组') + '</th><th>' + t('操作') + '</th>' +
+      '</tr></thead><tbody>' + keys.map((record, index) => {
+        const k = record.key;
+        const groups = (record.allowedGroups || []).join(',');
+        const label = 'Key ' + String(index + 1).padStart(2, '0');
+        const masked = k.length > 18 ? k.slice(0, 10) + '…' + k.slice(-6) : k;
+        const safe = encodeURIComponent(k);
+        return '<tr>' +
+          '<td><div class="keys-id"><strong>' + esc(label) + '</strong><code>' + esc(masked) + '</code></div></td>' +
+          '<td><select data-key="' + esc(k) + '" aria-label="' + esc(t('订阅分组')) + '" onchange="updateKeyGroups(this)">' +
+            (!record.allowedGroups.length ? '<option value="" selected>' + t('未授权') + '</option>' : '') +
+            ['free','pass','free,pass'].map(s => '<option value="' + s + '"' + (groups === s ? ' selected' : '') + '>' + groupLabel(s) + '</option>').join('') +
+          '</select></td>' +
+          '<td><div class="table-actions">' +
+            '<button class="btn btn-sm" onclick="copyText(decodeURIComponent(\'' + safe + '\'))">' + t('复制密钥') + '</button>' +
+            '<button class="btn btn-sm btn-danger" onclick="deleteKey(decodeURIComponent(\'' + safe + '\'))">' + t('删除') + '</button>' +
+          '</div></td></tr>';
+      }).join('') + '</tbody></table></div>';
+  } catch (e) { _('keysList').innerHTML = '<div class="empty">' + t('加载失败') + '</div>'; }
+}
+
+async function generateKey() {
+  try {
+    const d = await api('POST', '/keys/generate', {allowedGroups:_('newKeyGroups').value.split(',')});
+    const key = d.data.key;
+    const safe = encodeURIComponent(key);
+    _('keyGenResult').innerHTML =
+      '<div class="keys-reveal">' +
+        '<p>' + t('仅向你展示完整密钥。请保存在可信的密码管理器中。') + '</p>' +
+        '<div class="key-display" onclick="copyText(decodeURIComponent(\'' + safe + '\'))">' + esc(key) + '</div>' +
+        '<p>' + t('关闭后从当前界面清除；不要将密钥分享给他人。') + '</p>' +
+      '</div>';
+    loadKeys();
+    toast(t('密钥已生成'), 'success');
+  } catch (e) { toast(t('生成失败: ') + e.message, 'error'); }
+}
+
+async function updateKeyGroups(el) {
+  el.disabled = true;
+  try { await api('POST', '/keys/groups', {key:el.dataset.key, allowedGroups:el.value.split(',')}); toast(t('分组权限已更新'), 'success'); }
+  catch(e) { toast(e.message, 'error'); }
+  finally { el.disabled = false; loadKeys(); }
+}
+async function deleteKey(key) {
+  if (!confirm(t('确定删除此密钥？'))) return;
+  try {
+    await api('POST', '/keys/delete', { key });
+    toast(t('密钥已删除'), 'success');
+    loadKeys();
+  } catch (e) { toast(t('删除失败: ') + e.message, 'error'); }
+}
+
+async function deleteAllKeys() {
+  if (!confirm(t('确定删除所有 API 密钥？'))) return;
+  try {
+    const d = await api('GET', '/keys');
+    const keys = d.data.keys || [];
+    for (const k of keys) await api('POST', '/keys/delete', { key: k });
+    toast(t('全部密钥已删除'), 'success');
+    loadKeys();
+  } catch (e) { toast(t('删除失败: ') + e.message, 'error'); }
+}
+
+function copyText(value) {
+  const text = value == null ? '' : String(value);
+  navigator.clipboard.writeText(text).then(() => toast(t('已复制到剪贴板'), 'success')).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    toast(t('已复制到剪贴板'), 'success');
+  });
+}
+
+// ========== 配置管理 ==========
+async function updateConfig() {
+  const strategy = _('settingStrategy').value;
+  const defaultModel = _('settingDefModel').value;
+  try {
+    await api('POST', '/config/update', { strategy, defaultModel });
+    toast(t('配置已更新'), 'success');
+  } catch (e) { toast(t('更新失败: ') + e.message, 'error'); }
+}
+
+// 保存监听地址：保存后程序自动重启监听（立即生效）
+async function saveListenHost() {
+  const host = _('settingListenHost').value;
+  if (!host) return;
+  try {
+    const d = await api('POST', '/config/update', { host });
+    const safe = ['127.0.0.1', 'localhost', '::1', '0.0.0.0'].indexOf(host) !== -1;
+    if (safe) {
+      toast(t('已保存，正在重启监听...'), 'success');
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      toast(t('监听已切换，请通过 ') + (d.data.address || host) + t(' 访问管理后台'), 'success');
+    }
+    await loadConfig();
+  } catch (e) { toast(t('保存失败: ') + e.message, 'error'); }
+}
+
+function openPasswordDialog() {
+  if (!currentUser) { showLogin(); return; }
+  _('passwordOverlay').style.display = 'flex';
+  _('passwordHint').textContent = currentUser.mustChangePassword ? t('请先修改初始密码，完成后重新登录。') : t('修改当前用户密码后，该用户的所有会话将退出。');
+  _('cancelPasswordButton').style.display = currentUser.mustChangePassword ? 'none' : '';
+  _('passwordError').textContent = '';
+  _('currentPassword').focus();
+}
+function closePasswordDialog() {
+  if (currentUser && currentUser.mustChangePassword) return;
+  _('passwordOverlay').style.display = 'none';
+  ['currentPassword','newSelfPassword','confirmSelfPassword'].forEach(id => _(id).value = '');
+}
+async function savePassword(event) {
+  event.preventDefault();
+  const pwd = _('newSelfPassword').value;
+  const bytes = new TextEncoder().encode(pwd).length;
+  if (bytes < 8 || bytes > 72) { _('passwordError').textContent = t('新密码长度必须为 8–72 字节'); return; }
+  if (pwd !== _('confirmSelfPassword').value) { _('passwordError').textContent = t('两次输入的新密码不一致'); return; }
+  _('savePasswordButton').disabled = true;
+  try {
+    await api('POST', '/password', { currentPassword: _('currentPassword').value, password: pwd });
+    location.reload();
+  } catch (e) { _('passwordError').textContent = e.message; }
+  finally { _('savePasswordButton').disabled = false; }
+}
+
+function addHeaderRow() {
+  const tbody = _('headersTableBody');
+  const tr = document.createElement('tr');
+  tr.innerHTML =
+    '<td><input type="text" class="header-key" placeholder="Header-Name" style="font-size:12px;font-family:ui-monospace,monospace"></td>' +
+    '<td><input type="text" class="header-val" placeholder="value" style="font-size:12px;font-family:ui-monospace,monospace"></td>' +
+    '<td><button class="btn btn-sm btn-danger" onclick="this.closest(\'tr\').remove()">✕</button></td>';
+  tbody.appendChild(tr);
+}
+
+async function saveHeaders() {
+  const tbody = _('headersTableBody');
+  const rows = tbody.querySelectorAll('tr');
+  const headers = {};
+  let hasEmpty = false;
+  rows.forEach(tr => {
+    const keyInput = tr.querySelector('.header-key');
+    const valInput = tr.querySelector('.header-val');
+    if (keyInput && valInput) {
+      const k = keyInput.value.trim();
+      const v = valInput.value.trim();
+      if (k) { headers[k] = v; }
+      else if (v) { hasEmpty = true; }
+    }
+  });
+  if (hasEmpty) { toast(t('存在有值无键的行，已忽略'), 'info'); }
+  try {
+    const d = await api('POST', '/config/update', { headers });
+    toast(t('请求头已保存'), 'success');
+    _('headerSaveResult').innerHTML =
+      '<div style="color:var(--green);font-size:13px">✓ ' + t('已保存 ')+ Object.keys(d.data.headers).length + t(' 个请求头') + '</div>';
+    setTimeout(() => _('headerSaveResult').innerHTML = '', 5000);
+    loadConfig();
+  } catch (e) { toast(t('保存失败: ') + e.message, 'error'); }
+}
+
+// ========== 模型列表 ==========
+let _cachedModels = [];
+let _modelSyncSeen = false;
+let _modelGroupOpen = {}; // 模型分组展开状态（跨刷新保持，付费组默认折叠）
+
+function isOcModel(m) { return m.source === 'zen' || m.provider === 'opencode'; }
+function modelAccessGroup(m) {
+  return (m.group === 'free' || m.group === 'pass' || m.group === 'recommended') ? m.group : (m.cost === 'free' ? 'free' : 'pass');
+}
+
+function renderModelChip(m) {
+  let item = '<span class="model-tag ' + (m.cost || 'free') + '">' + esc(m.id) + '</span>';
+  if (m.custom) {
+    item += '<button class="btn btn-sm btn-danger" style="padding:2px 6px" onclick="deleteModel(\'' + esc(m.id) + '\')" title="' + t('删除') + '">✕</button>';
+  }
+  return '<span class="model-item">' + item + '</span>';
+}
+
+// 模型分组渲染：opencode / Cline 分类，付费模型默认折叠，点击组头展开
+function renderModelGroups(models) {
+  const groups = [
+    { key: 'oc-free', label: 'opencode · 免费模型', filter: m => isOcModel(m) && m.cost === 'free', collapsed: false },
+    { key: 'oc-pass', label: 'opencode · 付费模型', filter: m => isOcModel(m) && m.cost !== 'free', collapsed: true },
+    { key: 'cl-free', label: 'Cline · Free 分组', filter: m => !isOcModel(m) && !m.custom && modelAccessGroup(m) === 'free', collapsed: false },
+    { key: 'cl-pass', label: 'Cline · Pass 分组', filter: m => !isOcModel(m) && !m.custom && modelAccessGroup(m) === 'pass', collapsed: true },
+    { key: 'cl-recommended', label: 'Cline · 推荐模型', filter: m => !isOcModel(m) && !m.custom && modelAccessGroup(m) === 'recommended', collapsed: true },
+    { key: 'custom', label: '用户自定义', filter: m => m.custom, collapsed: false },
+  ];
+  return groups.map(g => {
+    const items = models.filter(g.filter);
+    if (items.length === 0) return '';
+    const open = g.collapsed ? (_modelGroupOpen[g.key] === true) : (_modelGroupOpen[g.key] !== false);
+    const chips = items.map(renderModelChip).join('');
+    return '<div class="model-group">' +
+      '<div class="model-group-head' + (open ? ' expanded' : '') + '" data-key="' + g.key + '" onclick="toggleModelGroup(\'' + g.key + '\')" title="' + t('点击展开/折叠') + '">' +
+        '<span class="model-group-caret">▸</span>' +
+        '<span class="model-group-label">' + t(g.label) + '</span>' +
+        '<span class="model-group-count">' + items.length + '</span>' +
+      '</div>' +
+      '<div class="model-group-body" style="display:' + (open ? 'block' : 'none') + '">' + chips + '</div>' +
+    '</div>';
+  }).join('') || '<div class="empty">' + t('暂无模型') + '</div>';
+}
+
+function toggleModelGroup(key) {
+  const head = document.querySelector('.model-group-head[data-key="' + key + '"]');
+  if (!head) return;
+  const open = !head.classList.contains('expanded');
+  head.classList.toggle('expanded', open);
+  const body = head.parentElement.querySelector('.model-group-body');
+  if (body) body.style.display = open ? 'block' : 'none';
+  _modelGroupOpen[key] = open;
+}
+
+async function loadModels() {
+  try {
+    const d = await api('GET', '/models');
+    const models = d.data.models || [];
+    _cachedModels = models;
+    _('modelsList').innerHTML = renderModelGroups(models);
+    const ls = d.data.lastSync || {};
+    if (_('modelSyncTime')) {
+      _('modelSyncTime').textContent = ls.syncedAt ? new Date(ls.syncedAt).toLocaleString(LC()) : t('从未同步');
+    }
+    // 启动自动同步的变更弹窗（仅提示一次）
+    if (!_modelSyncSeen && ls.syncedAt && ls.changed) {
+      _modelSyncSeen = true;
+      showModelSyncModal(ls);
+    }
+  } catch (e) { _('modelsList').textContent = t('加载失败'); }
+}
+
+async function syncModels() {
+  const btn = _('syncModelsBtn');
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loading"></span> ' + t('同步中...'); }
+  try {
+    const d = await api('POST', '/models/sync');
+    const res = d.data || {};
+    await loadModels();
+    if (res.changed) {
+      showModelSyncModal(res);
+      toast(t('模型列表已更新'), 'success');
+    } else {
+      toast(t('模型无变化'), 'info');
+    }
+    if (_('settingDefModel')) await loadConfig();
+  } catch (e) {
+    toast(t('模型同步失败') + ': ' + (e.message || ''), 'error');
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+}
+
+async function syncOcModels() {
+  const btn = _('syncOcModelsBtn');
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loading"></span> ' + t('同步中...'); }
+  try {
+    const d = await api('POST', '/opencode/models/sync');
+    const res = d.data || {};
+    await loadModels();
+    if (res.changed) {
+      showModelSyncModal(res);
+      toast(t('opencode 模型列表已更新'), 'success');
+    } else {
+      toast(t('模型无变化'), 'info');
+    }
+  } catch (e) {
+    toast(t('模型同步失败') + ': ' + (e.message || ''), 'error');
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+}
+
+// ========== opencode 免费模型配置 ==========
+async function loadOcConfig() {
+  try {
+    const d = await api('GET', '/opencode/config');
+    const c = d.data;
+    _('ocEnabled').value = String(!!c.enabled);
+    if (c.key) _('ocKey').value = c.key;
+    if (c.baseURL) _('ocBaseURL').value = c.baseURL;
+    _('ocMaxConcurrency').value = c.maxConcurrency;
+    _('ocRetries').value = c.retries;
+    _('ocFailover').value = String(!!c.failover);
+    _('ocFailoverCount').value = c.failoverCount;
+    _('ocFailoverMinutes').value = c.failoverMinutes;
+    const cp = c.compaction || {};
+    _('ocCompactAuto').value = String(!!cp.auto);
+    _('ocCompactBuffer').value = cp.buffer != null ? cp.buffer : 20000;
+    _('ocCompactKeepTokens').value = cp.keepTokens != null ? cp.keepTokens : 8000;
+    _('ocCompactMaxSummary').value = cp.maxSummary != null ? cp.maxSummary : 4096;
+    _('ocProxyStrategy').value = c.proxyStrategy || 'round_robin';
+    _('ocProxies').value = (c.proxies || []).join('\n');
+    // 运行状态与出口冷却
+    const rt = c.runtime || {};
+    let status;
+    if (!c.enabled) status = '<span style="color:var(--text3)">⏸ ' + t('已停用') + '</span>';
+    else if (rt.failoverActive) status = '<span style="color:var(--red)">🔴 ' + t('故障转移中（opencode 暂不可用，请求走 Cline 池）') + '</span>';
+    else status = '<span style="color:var(--green)">🟢 ' + t('正常') + '</span>' +
+      '<span style="margin-left:8px">' + t('已同步模型') + ': ' + (c.syncedModels || 0) + '</span>';
+    _('ocRuntimeStatus').innerHTML = status;
+    const cds = c.proxyCooldowns || {};
+    const entries = Object.entries(cds);
+    _('ocProxyCooldowns').textContent = entries.length
+      ? entries.map(([p, until]) => maskProxyForDisplay(p) + ' → ' + until).join('; ')
+      : t('无冷却');
+  } catch (e) { /* ignore */ }
+}
+
+function maskProxyForDisplay(p) {
+  return p.replace(/\/\/([^@/]+)@/, '//***@');
+}
+
+async function saveOcConfig() {
+  const numOr = (id, def) => { const v = parseInt(_(id).value, 10); return isNaN(v) ? def : v; };
+  const payload = {
+    enabled: _('ocEnabled').value === 'true',
+    key: _('ocKey').value.trim(),
+    baseURL: _('ocBaseURL').value.trim(),
+    maxConcurrency: numOr('ocMaxConcurrency', 8),
+    retries: numOr('ocRetries', 3),
+    failover: _('ocFailover').value === 'true',
+    failoverCount: numOr('ocFailoverCount', 3),
+    failoverMinutes: numOr('ocFailoverMinutes', 5),
+    proxyStrategy: _('ocProxyStrategy').value,
+    proxies: _('ocProxies').value.split('\n').map(s => s.trim()).filter(Boolean),
+    compaction: {
+      auto: _('ocCompactAuto').value === 'true',
+      buffer: numOr('ocCompactBuffer', 20000),
+      keepTokens: numOr('ocCompactKeepTokens', 8000),
+      maxSummary: numOr('ocCompactMaxSummary', 4096),
+    },
+  };
+  try {
+    await api('POST', '/opencode/config/update', payload);
+    _('ocSaveResult').innerHTML = '<span style="color:var(--green)">✓ ' + t('opencode 配置已保存') + '</span>';
+    setTimeout(() => _('ocSaveResult').innerHTML = '', 5000);
+    await loadOcConfig();
+  } catch (e) {
+    toast(t('保存失败: ') + (e.message || ''), 'error');
+  }
+}
+
+function showModelSyncModal(res) {
+  const ov = _('modelSyncOverlay');
+  if (!ov) return;
+  const box = _('modelSyncModal');
+  const add = (res.added || []).map(m => '<div style="padding:3px 0">+ <span class="mono">' + esc(m) + '</span></div>').join('');
+  const upd = (res.updated || []).map(m => '<div style="padding:3px 0">↻ <span class="mono">' + esc(m) + '</span></div>').join('');
+  const rem = (res.removed || []).map(m => '<div style="padding:3px 0;color:var(--text3)">- <span class="mono">' + esc(m) + '</span></div>').join('');
+  let body = '';
+  if (add) body += '<div style="color:var(--green);font-weight:600;margin-bottom:6px">' + t('新增模型') + '</div>' + add;
+  if (upd) body += '<div style="color:var(--accent);font-weight:600;margin:10px 0 6px">' + t('更新模型') + '</div>' + upd;
+  if (rem) body += '<div style="color:var(--text2);font-weight:600;margin:10px 0 6px">' + t('移除模型') + '</div>' + rem;
+  if (!body) body = '<div style="color:var(--text2)">' + t('模型无变化') + '</div>';
+  box.innerHTML =
+    '<h2 style="margin:0 0 10px;font-size:18px">' + t('模型同步') + '</h2>' +
+    '<div style="font-size:13px;max-height:320px;overflow-y:auto;color:var(--text);line-height:1.6">' + body + '</div>' +
+    '<div style="text-align:right;margin-top:16px"><button class="btn btn-primary" onclick="closeModelSyncModal()">OK</button></div>';
+  ov.style.display = 'flex';
+}
+
+function closeModelSyncModal() {
+  const ov = _('modelSyncOverlay');
+  if (ov) ov.style.display = 'none';
+}
+
+async function addModel() {
+  const id = _('newModelId').value.trim();
+  const cost = _('newModelCost').value;
+  if (!id) { toast(t('请输入模型 ID'), 'error'); return; }
+  try {
+    await api('POST', '/models/add', { id, cost });
+    toast(t('模型已添加: ') + id, 'success');
+    _('newModelId').value = '';
+    await loadModels();
+    await loadConfig();
+  } catch (e) { toast(t('添加失败: ') + e.message, 'error'); }
+}
+
+async function deleteModel(id) {
+  if (!confirm(t('确认删除模型 ') + id + ' ?')) return;
+  try {
+    await api('POST', '/models/delete', { id });
+    toast(t('模型已删除: ') + id, 'success');
+    await loadModels();
+    await loadConfig();
+  } catch (e) { toast(t('删除失败: ') + e.message, 'error'); }
+}
+
+// ========== 配置加载 ==========
+async function loadConfig() {
+  try {
+    const d = await api('GET', '/config');
+    const c = d.data;
+    if (c.address) _('settingAddr').value = c.address;
+    if (c.strategy) _('settingStrategy').value = c.strategy;
+    if (c.version) _('settingVersion').value = c.version;
+    if (c.version) {
+      if (_('footerVersion')) _('footerVersion').textContent = c.version;
+      if (_('aboutVersion')) _('aboutVersion').textContent = t('版本 ') + c.version;
+    }
+    if (c.poolPath) _('settingPoolPath').value = c.poolPath;
+    if (c.defaultModel !== undefined) {
+      const sel = _('settingDefModel');
+      // 先用缓存模型填充下拉，再选中当前默认值
+      const opts = (_cachedModels || []).map(m =>
+        '<option value="' + esc(m.id) + '"' + (m.id === c.defaultModel ? ' selected' : '') + '>' + esc(m.id) + '</option>'
+      ).join('');
+      sel.innerHTML = opts || '<option value="">' + t('（无可用模型）') + '</option>';
+    }
+    // 本机 IP 展示（监听 0.0.0.0 时局域网访问地址）
+    const ips = c.localIPs || [];
+    if (ips.length) {
+      _('localIPsRow').style.display = '';
+      _('localIPsList').innerHTML = ips.map(ip =>
+        '<span class="model-tag free">' + esc(ip) + '</span>'
+      ).join('');
+    } else {
+      _('localIPsRow').style.display = 'none';
+    }
+    // 监听地址下拉：补入本机 IP 选项并选中当前值
+    const listenSel = _('settingListenHost');
+    if (listenSel) {
+      if (!listenSel.dataset.inited) {
+        listenSel.dataset.inited = '1';
+        let opts = '<option value="127.0.0.1">' + t('127.0.0.1（仅本机）') + '</option>';
+        opts += '<option value="0.0.0.0">' + t('0.0.0.0（所有网卡）') + '</option>';
+        opts += ips.map(ip => '<option value="' + esc(ip) + '">' + esc(ip) + t('（本机网卡）') + '</option>').join('');
+        listenSel.innerHTML = opts;
+      }
+      if (c.host) listenSel.value = c.host;
+    }
+    // 后台密码状态
+    if (c.hasPassword !== undefined) _('passwordStatus').textContent = c.hasPassword ? t('已启用') : t('未启用');
+    // 非回环监听安全警告（0.0.0.0 / 局域网 IP 都会暴露管理后台）
+    const h = c.host || '';
+    const safeHosts = ['', '127.0.0.1', 'localhost', '::1'];
+    _('listenWarn').style.display = (safeHosts.indexOf(h) === -1) ? '' : 'none';
+    if (c.headers) {
+      const tbody = _('headersTableBody');
+      tbody.innerHTML = Object.entries(c.headers).map(([k, v]) =>
+        '<tr>' +
+          '<td><input type="text" class="header-key" value="' + esc(k) + '" style="font-size:12px;font-family:ui-monospace,monospace;width:100%"></td>' +
+          '<td><input type="text" class="header-val" value="' + esc(v) + '" style="font-size:12px;font-family:ui-monospace,monospace;width:100%"></td>' +
+          '<td><button class="btn btn-sm btn-danger" onclick="this.closest(\'tr\').remove()">✕</button></td>' +
+        '</tr>'
+      ).join('');
+    }
+  } catch (e) { /* ignore */ }
+}
+
+// ========== 请求日志 ==========
+let logCursor = '';
+let logHasMore = false;
+
+const formatDuration = ms => {
+  if (!ms || ms <= 0) return '-';
+  if (ms < 1000) return ms + 'ms';
+  return (ms / 1000).toFixed(1) + 's';
+};
+const formatTPS = v => (!v || v <= 0) ? '-' : v.toFixed(1);
+
+async function loadRequestLogs(reset) {
+  if (reset) logCursor = '';
+  const cursor = logCursor;
+  try {
+    const path = '/request-logs?limit=50' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
+    const d = await api('GET', path);
+    const page = d.data;
+    const items = page.items || [];
+    logHasMore = !!page.hasMore;
+    logCursor = page.nextCursor || '';
+    _('logLoadMore').style.display = logHasMore ? 'block' : 'none';
+
+    const tbody = _('logTableBody');
+    const cards = _('logCards');
+    if (reset && (!items || items.length === 0)) {
+      tbody.innerHTML = '<tr><td colspan="12" class="empty">' + t('暂无请求日志') + '</td></tr>';
+      cards.innerHTML = '<div class="empty">' + t('暂无请求日志') + '</div>';
+      return;
+    }
+
+    const renderRow = l => {
+      const ts = l.startedAt ? new Date(l.startedAt).toLocaleString(LC()) : '-';
+      const st = l.completed
+        ? '<span class="log-status ok">' + t('完成') + '</span>'
+        : '<span class="log-status fail" title="' + esc(l.error || '') + '">' + t('失败') + '</span>';
+      const tk = l.usageAvailable
+        ? formatTokenCount(l.inputTokens) + '</td><td>' + formatTokenCount(l.outputTokens) + '</td><td>' + formatTokenCount(l.cachedTokens) + '</td><td>' + formatTokenCount(l.totalTokens)
+        : '-</td><td>-</td><td>-</td><td>-';
+      return '<tr>' +
+        '<td class="mono" style="font-size:11px">' + ts + '</td>' +
+        '<td>' + esc(l.accountEmail || '-') + '</td>' +
+        '<td>' + esc(l.protocol || '-') + '</td>' +
+        '<td class="mono" style="font-size:11px">' + esc(l.model || '-') + '</td>' +
+        '<td>' + tk + '</td>' +
+        '<td>' + formatDuration(l.durationMs) + '</td>' +
+        '<td>' + (l.ttftMs ? formatDuration(l.ttftMs) : '-') + '</td>' +
+        '<td>' + formatTPS(l.outputTokensPerSecond) + '</td>' +
+        '<td>' + st + '</td></tr>';
+    };
+    const renderCard = l => {
+      const ts = l.startedAt ? new Date(l.startedAt).toLocaleString(LC()) : '-';
+      const st = l.completed ? t('完成') : t('失败');
+      const tk = l.usageAvailable
+        ? t('输入 ') + formatTokenCount(l.inputTokens) + t(' · 输出 ') + formatTokenCount(l.outputTokens) + t(' · 缓存 ') + formatTokenCount(l.cachedTokens) + t(' · 总 ') + formatTokenCount(l.totalTokens)
+        : t('Token 未知');
+      return '<article class="account-card">' +
+        '<div class="account-card-header"><span class="account-email">' + esc(l.accountEmail || '-') + '</span><span class="log-status ' + (l.completed ? 'ok' : 'fail') + '">' + st + '</span></div>' +
+        '<div class="account-metrics">' +
+          '<div class="account-metric"><span class="account-metric-label">' + t('协议') + '</span><span class="account-metric-value">' + esc(l.protocol || '-') + '</span></div>' +
+          '<div class="account-metric"><span class="account-metric-label">' + t('耗时') + '</span><span class="account-metric-value">' + formatDuration(l.durationMs) + '</span></div>' +
+          '<div class="account-metric"><span class="account-metric-label">TTFT</span><span class="account-metric-value">' + (l.ttftMs ? formatDuration(l.ttftMs) : '-') + '</span></div>' +
+          '<div class="account-metric"><span class="account-metric-label">tok/s</span><span class="account-metric-value">' + formatTPS(l.outputTokensPerSecond) + '</span></div>' +
+        '</div>' +
+        '<div style="font-size:12px;color:var(--text2);margin-bottom:8px">' + tk + '</div>' +
+        '<div class="account-card-footer"><span class="mono" style="font-size:11px">' + ts + '</span><span class="mono" style="font-size:11px">' + esc(l.model || '-') + '</span></div>' +
+      '</article>';
+    };
+
+    if (reset) {
+      tbody.innerHTML = items.map(renderRow).join('');
+      cards.innerHTML = items.map(renderCard).join('');
+    } else {
+      tbody.insertAdjacentHTML('beforeend', items.map(renderRow).join(''));
+      cards.insertAdjacentHTML('beforeend', items.map(renderCard).join(''));
+    }
+  } catch (e) { toast(t('加载日志失败: ') + e.message, 'error'); }
+}
+
+// ========== 用户管理 ==========
+async function loadUsers() {
+  try {
+    const d = await api('GET', '/users');
+    const users = (d.data && d.data.users) || [];
+    const tbody = _('userTableBody');
+    if (!tbody) return;
+    if (users.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty">' + t('暂无用户') + '</td></tr>';
+      return;
+    }
+    tbody.innerHTML = users.map(u => {
+      const created = u.createdAt ? new Date(u.createdAt).toLocaleString(LC()) : '-';
+      const roleTag = u.role === 'admin'
+        ? '<span class="model-tag pass">' + t('管理员') + '</span>'
+        : '<span class="model-tag free">' + t('用户') + '</span>';
+      return '<tr>' +
+        '<td style="font-weight:600">' + esc(u.username) + '</td>' +
+        '<td>' + roleTag + '</td>' +
+        '<td class="mono" style="font-size:12px">' + created + '</td>' +
+        '<td>' +
+          '<button class="btn btn-sm" style="margin-right:6px" onclick="resetUserPassword(\'' + esc(u.id) + '\', \'' + esc(u.username) + '\')">' + t('重置密码') + '</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="deleteUser(\'' + esc(u.id) + '\', \'' + esc(u.username) + '\')">' + t('删除') + '</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  } catch (e) {
+    toast(t('加载用户列表失败: ') + e.message, 'error');
+  }
+}
+
+async function addUser() {
+  const username = _('newUsername').value.trim();
+  const password = _('newPassword').value;
+  const role = _('newUserRole').value;
+  if (!username) { toast(t('请输入用户名'), 'error'); return; }
+  if (!password) { toast(t('请输入密码'), 'error'); return; }
+  try {
+    await api('POST', '/users/add', { username, password, role });
+    _('newUsername').value = '';
+    _('newPassword').value = '';
+    toast(t('用户添加成功'), 'success');
+    await loadUsers();
+  } catch (e) {
+    toast(t('添加失败: ') + e.message, 'error');
+  }
+}
+
+async function resetUserPassword(id, username) {
+  const newPass = prompt(t('请输入用户 ') + username + t(' 的新密码：'));
+  if (!newPass) return;
+  try {
+    await api('POST', '/users/reset-password', { id, password: newPass });
+    toast(t('密码重置成功'), 'success');
+  } catch (e) {
+    toast(t('重置失败: ') + e.message, 'error');
+  }
+}
+
+async function deleteUser(id, username) {
+  if (!confirm(t('确定删除用户 ') + username + '？')) return;
+  try {
+    await api('POST', '/users/delete', { id });
+    toast(t('用户已删除'), 'success');
+    await loadUsers();
+  } catch (e) {
+    toast(t('删除失败: ') + e.message, 'error');
+  }
+}
+
+// ========== 初始化 ==========
+async function initializeAdmin() {
+  try {
+    const result = await api('GET', '/me');
+    currentUser = result.data;
+    const loginOverlay = _('loginOverlay');
+    if (loginOverlay) {
+      loginOverlay.style.display = 'none';
+      loginOverlay.setAttribute('aria-hidden', 'true');
+    }
+    document.body.classList.remove('login-active');
+    document.body.classList.toggle('read-only', !isAdmin());
+    _('footerVersion').textContent = currentUser.version;
+    _('aboutVersion').textContent = t('版本 ') + currentUser.version;
+    if (currentUser.mustChangePassword) { openPasswordDialog(); return; }
+    loadStats();
+    checkForUpdates(false);
+    loadAccounts();
+    if (isAdmin()) loadModels().then(() => loadConfig());
+    if (location.hash === '#accounts') switchTab('accounts');
+  } catch (e) { showLogin(); }
+}
+applyLang();
+initializeAdmin();
+setInterval(() => { if (currentUser && !currentUser.mustChangePassword) loadStats(); }, 10000);
+</script>
+</body>
+</html>

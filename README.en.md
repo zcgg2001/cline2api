@@ -18,7 +18,7 @@ Cline API reverse proxy · multi-account rotation · three protocols · desktop 
 
 Cline2API is a reverse proxy with multi-account rotation, OpenAI Chat Completions / Responses and Anthropic Messages APIs, API key authentication, and a bilingual admin panel. A single-file cross-platform desktop app is included.
 
-Current version: **v1.2.0**. See [release notes](releases/v1.2.0.md) for billing, account administration, persistence and the refreshed admin login experience.
+Current version: **v1.2.0**. See [release notes](docs/releases/v1.2.0.md) for billing, account administration, persistence and the refreshed admin login experience.
 
 **Built with**: Go (backend + proxy + desktop shell), HTML/CSS/JS (embedded admin frontend).
 
@@ -30,6 +30,7 @@ Current version: **v1.2.0**. See [release notes](releases/v1.2.0.md) for billing
 - **Official quota and billing**: administrators can sync ClinePass 5-hour/weekly/monthly usage and reset times, personal wallet balance, actual charges in the latest 20 usage records, and listed subscription price; unavailable data stays unknown
 - **Multi-account rotation**: load-balances across Cline accounts (`round_robin` / `fill` / `random`)
 - **Bilingual admin panel**: `/admin/` manages accounts, API keys, models, headers and proxy settings; auto-follows your browser language, manually switchable in the sidebar
+- **Version checks and online updates**: check this repository's GitHub Releases from the admin panel; official desktop builds validate the platform, size, SHA-256 and Go build metadata before backup and atomic replacement, while development builds and containers remain check-only
 - **Dynamic model sync**: fetches the official Cline recommended-models API on startup (free / cline-pass / recommended); a popup notifies you when the model list changes, and you can also click "Sync Models from Cline" in the panel anytime
 - **Custom models**: add/remove model IDs manually and pick a default model (falls back to the first free model automatically)
 - **API key auth**: protects proxy endpoints; generate/delete multiple API keys
@@ -42,7 +43,7 @@ Current version: **v1.2.0**. See [release notes](releases/v1.2.0.md) for billing
 
 ### Option 1: Desktop app (recommended for sharing)
 
-Download the executable for your platform from [Releases](https://github.com/luawei1/cline2api/releases) and double-click it.
+Download the executable for your platform from [Releases](https://github.com/zcgg2001/cline2api/releases) and double-click it.
 
 > On Windows, the SmartScreen "Windows protected your PC" warning is normal because no code-signing certificate is purchased. Click "More info → Run anyway".
 
@@ -56,9 +57,9 @@ Download the executable for your platform from [Releases](https://github.com/lua
 ### Option 2: Command line
 
 ```bash
-go build -o cline-proxy .
-./cline-proxy              # default port 3457
-./cline-proxy -port 8080   # custom port
+make build
+./build/bin/cline-proxy              # default port 3457
+./build/bin/cline-proxy -port 8080   # custom port
 ```
 
 Then open http://127.0.0.1:3457/admin/ for the admin panel.
@@ -197,16 +198,9 @@ Invalid account files stop startup and are preserved for recovery. Passwords use
 ## Project Structure
 
 ```
-├── main.go              CLI entry (go build .)
-├── desktop_main.go      Desktop entry (go build -tags desktop)
-├── proxy.go             HTTP server, API routes, protocol conversion, SSE
-├── admin.go             Admin REST API
-├── admin_html.go        Admin frontend (embedded)
-├── models_sync.go       Cline model sync (startup + manual)
-├── i18n.go              Bilingual (zh/en) messages for the admin API
-├── auth.go              WorkOS OAuth + token refresh
-├── pool.go              Account pool management, multi-location lookup
-├── request_logs.go      Request logs
+├── cmd/cline-proxy/     CLI, desktop entry, application code, tests and embedded assets
+├── docs/                Reference, plans, history and release notes
+├── Makefile             Build, test and static-check entry points
 ├── desktop/             Desktop build scripts, docs, icon generator
 ├── Dockerfile           Docker build
 ├── docker-compose.yml   Docker Compose

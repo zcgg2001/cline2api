@@ -18,7 +18,7 @@ Cline API 反向代理 · 多账号轮询 · 三协议兼容 · 桌面端
 
 Cline2API 是 Cline API 的反向代理服务，支持多账号轮询、OpenAI Chat Completions / Responses 和 Anthropic Messages 三种协议、API Key 鉴权，内置中英文管理后台。提供跨平台桌面端单文件应用（Windows / macOS / Linux）。
 
-当前版本 **v1.2.0**：新增账号计费与用量面板、批量账号管理、原子持久化，以及焕新的后台登录界面。详见 [v1.2.0 发布说明](releases/v1.2.0.md) 和 [v1.1 改进记录](cline2api_v1.1.md)。
+当前版本 **v1.2.0**：新增账号计费与用量面板、批量账号管理、原子持久化，以及焕新的后台登录界面。详见 [v1.2.0 发布说明](docs/releases/v1.2.0.md) 和 [v1.1 改进记录](docs/history/cline2api_v1.1.md)。
 
 **开发语言**：Go（后端 + 代理 + 桌面壳），HTML/CSS/JS（管理后台前端，内嵌于二进制）。
 
@@ -30,6 +30,7 @@ Cline2API 是 Cline API 的反向代理服务，支持多账号轮询、OpenAI C
 - **官方额度与费用**：管理员可同步 ClinePass 的 5 小时/周/月已用百分比和重置时间，查看个人余额、最近 20 条账单实际扣费及订阅标价；未订阅和查询失败不会显示为 0% 额度
 - **多账号轮询**：自动在多个 Cline 账号间切换负载（`round_robin` / `fill` / `random` 策略）
 - **中英文管理后台**：浏览器访问 `/admin/` 管理账号、API Key、模型配置、请求头、代理设置；自动跟随浏览器语言，侧栏可手动切换
+- **版本检查与在线更新**：后台可检查本仓库 GitHub Releases；正式桌面发行版会校验平台、文件大小、SHA-256 和 Go 构建信息后备份并原子替换，开发版/容器仅提供检查结果
 - **动态模型同步**：启动时自动拉取 Cline 官方推荐模型接口（免费/订阅模型），模型变化时弹窗提示，也可在后台手动「从 Cline 同步模型」
 - **自定义模型**：后台可手动添加/删除模型 ID，并自由选择默认模型（未设置时自动回退到第一个免费模型）
 - **API Key 鉴权**：保护代理端点，支持生成/删除多个 API Key
@@ -42,7 +43,7 @@ Cline2API 是 Cline API 的反向代理服务，支持多账号轮询、OpenAI C
 
 ### 方式一：桌面端（推荐，分享给他人）
 
-从 [Releases](https://github.com/luawei1/cline2api/releases) 下载对应平台的可执行文件，双击运行即可。
+从 [Releases](https://github.com/zcgg2001/cline2api/releases) 下载对应平台的可执行文件，双击运行即可。
 
 > Windows 提示 SmartScreen「已保护你的电脑」是**未购买代码签名证书的正常现象**，
 > 点击「更多信息 → 仍要运行」即可，不影响使用。
@@ -57,9 +58,9 @@ Cline2API 是 Cline API 的反向代理服务，支持多账号轮询、OpenAI C
 ### 方式二：命令行
 
 ```bash
-go build -o cline-proxy .
-./cline-proxy              # 默认端口 3457
-./cline-proxy -port 8080   # 指定端口
+make build
+./build/bin/cline-proxy              # 默认端口 3457
+./build/bin/cline-proxy -port 8080    # 指定端口
 ```
 
 启动后访问 http://127.0.0.1:3457/admin/ 进入管理后台。
@@ -120,13 +121,13 @@ Model:    cline-free/glm-5.2
 
 ```bash
 # CLI：监听所有网卡（局域网设备可通过本机 IP 访问）
-./cline-proxy -host 0.0.0.0
+./build/bin/cline-proxy -host 0.0.0.0
 
 # 指定某个网卡的 IP
-./cline-proxy -host 192.168.1.100
+./build/bin/cline-proxy -host 192.168.1.100
 
 # 环境变量方式（桌面端同样支持）
-CLINE_PROXY_HOST=0.0.0.0 ./cline-proxy
+CLINE_PROXY_HOST=0.0.0.0 ./build/bin/cline-proxy
 ```
 
 > 对外监听前完成初始密码设置，并创建 API Key；未配置任何 Key 时，代理接口仍兼容匿名调用。请通过防火墙限制访问，公网部署应使用 HTTPS 反向代理。
@@ -204,19 +205,26 @@ git push origin v1.2.0
 ## 项目结构
 
 ```
-├── main.go              CLI 入口（go build .）
-├── desktop_main.go      桌面端入口（go build -tags desktop）
-├── proxy.go             HTTP 服务、API 路由、协议转换、SSE
-├── admin.go             管理后台 REST API
-├── admin_html.go        管理后台前端（内嵌）
-├── auth.go              WorkOS OAuth + Token 刷新
-├── pool.go              账号池管理、多位置数据查找
-├── request_logs.go      请求日志
+├── cmd/cline-proxy/     CLI、桌面入口、业务源码、Go 测试和嵌入资源
+├── docs/                文档：reference / plans / history / releases
 ├── desktop/             桌面端构建脚本、文档、图标生成器
+├── frontend/            Wails 工具链占位
+├── build/bin/           本地 CLI 构建产物（不提交）
+├── data/                本地运行数据（不提交）
+├── Makefile             构建、测试、静态检查入口
 ├── Dockerfile           Docker 构建
 ├── docker-compose.yml   Docker Compose
 └── .github/workflows/   CI 三平台自动构建
 ```
+
+目录职责与开发命令见 [文档导航](docs/README.md)。所有可执行程序源码位于 `cmd/cline-proxy/`，通过 `go run ./cmd/cline-proxy` 或 Makefile 构建。
+
+```bash
+make test                # Go 竞态检测 + 前端单元测试
+make check               # 测试 + JS 语法检查 + go vet + CLI 构建
+```
+
+未安装 Make 时，可用 `go build -mod=readonly -o build/bin/cline-proxy ./cmd/cline-proxy` 构建。请在项目根目录运行上述命令；整理文件不会移动已有 `.cline-*.json` 账号和配置文件，也不会改变数据查找顺序。
 
 ## 技术栈
 

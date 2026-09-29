@@ -5,7 +5,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 ARG APP_VERSION
-RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.appVersion=${APP_VERSION}" -o cline-proxy .
+RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.appVersion=${APP_VERSION}" -o cline-proxy ./cmd/cline-proxy
 
 FROM alpine:3.21
 

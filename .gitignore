@@ -7,31 +7,40 @@ data/
 .cline-request-logs.json
 .cline-zen.json
 .cline-config.json
-cline-proxy
-cline-proxy.exe
-cline-proxy.exe~
-cline-go-proxy.exe
+/cline-proxy
+/cline-proxy.exe
+/cline-proxy.exe~
+/cline-go-proxy.exe
 .zcode/
 
 # Local macOS metadata and ad-hoc build output
 .DS_Store
-cline-go-proxy
+/cline-go-proxy
+
+# Browser diagnostics and frontend dependency caches (keep local files)
+.playwright-cli/
+node_modules/
+coverage/
+
+# Local environment variants (allow a shareable example)
+.env.*
+!.env.example
 
 # 参考项目（opencode 集成参考，非本仓库代码）
 opencode-ref/
 
-# Windows icon resource (auto-linked by go build, must be in repo for CI)
-!resource_windows_amd64.syso
+# Windows icon resource (auto-linked by go build, must be in the executable package)
+!cmd/cline-proxy/resource_windows_amd64.syso
 
 # desktop build artifacts
 desktop/build/
 desktop/dist/
 desktop/*.exe
 desktop/icon-gen/resource_windows_amd64.syso
-cline-desktop
-cline-desktop.exe
-cline-proxy-desktop.exe
-cline-proxy-desktop-debug.exe
+/cline-desktop
+/cline-desktop.exe
+/cline-proxy-desktop.exe
+/cline-proxy-desktop-debug.exe
 
 # wails build output
 build/bin/

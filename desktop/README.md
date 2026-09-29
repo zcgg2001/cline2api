@@ -36,18 +36,18 @@ Wails 依赖各平台原生 WebView 的 C 绑定，**不能交叉编译**，需�
 ### Windows 资源信息（图标 / 版本 / manifest）
 
 Windows exe 的图标、文件版本信息（属性页"详细信息"）和应用 manifest（DPI 感知、Win10/11 兼容声明）
-都来自 PE 资源文件 `resource_windows_amd64.syso`（项目根目录，go build 自动链接）。
+都来自 PE 资源文件 `cmd/cline-proxy/resource_windows_amd64.syso`（可执行程序目录，go build 自动链接）。
 
 修改图标或版本号后需重新生成：
 
 ```bash
 cd desktop/icon-gen
 go run .            # 生成 desktop/icon-gen/resource_windows_amd64.syso
-cp resource_windows_amd64.syso ../../resource_windows_amd64.syso
+cp resource_windows_amd64.syso ../../cmd/cline-proxy/resource_windows_amd64.syso
 ```
 
 版本号在 `desktop/icon-gen/main.go` 顶部的 `appVersion` 等常量中修改。生成的 `.syso` 应提交到仓库，
-CI 构建依赖它（见根目录 `.gitignore` 中的 `!resource_windows_amd64.syso`）。
+CI 构建依赖它（该资源文件与 Go 源码放在同一个可执行程序目录）。
 
 ### 发布 zip（网盘分发推荐）
 
@@ -103,7 +103,7 @@ sudo pacman -S gtk3 webkit2gtk
 构建带控制台输出的版本（不隐藏命令行窗口）：
 
 ```bash
-go build -tags "desktop production" -o cline-proxy-desktop-debug.exe .
+go build -tags "desktop production" -o cline-proxy-desktop-debug.exe ./cmd/cline-proxy
 ```
 
 自检模式（启动代理、验证 /health、退出，不弹窗口）：
@@ -115,8 +115,8 @@ go build -tags "desktop production" -o cline-proxy-desktop-debug.exe .
 ## 技术说明
 
 - 构建必须包含 `-tags "desktop production"`。直接 `go build` 会进入 Wails 的保护分支报错。
-- 普通 `go build .` 仍构建原来的命令行代理；`desktop` build tag 只影响桌面版入口。
+- 普通 `go build ./cmd/cline-proxy` 仍构建原来的命令行代理；`desktop` build tag 只影响桌面版入口。
 - 账号、API Key 和请求日志仍由原有代理逻辑保存到 exe 所在目录。不要将 `.cline-accounts.json` 等凭据打进发布包。
 - `CLINE_PROXY_PORT` 环境变量或 `-port` 参数可覆盖默认端口 `3457`。
 - Windows 图标、版本信息、应用 manifest 通过 `.syso` PE 资源嵌入，由 `desktop/icon-gen/` 生成（图标 + 版本信息 + manifest 在同一资源文件内）。
-- `desktop_main.go` 位于项目根目录（`package main`），需调用同包内 `startProxy` 等未导出函数。
+- `desktop_main.go` 位于 `cmd/cline-proxy/`（`package main`），需调用同包内 `startProxy` 等未导出函数。

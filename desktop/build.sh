@@ -18,7 +18,7 @@ ARCH=$(go env GOARCH)
 OUT="$ROOT/desktop/build/$OS-$ARCH"
 NAME="cline-proxy-desktop"
 # 版本号：环境变量 VERSION 优先，否则使用源码 VERSION 文件。
-VERSION=${VERSION:-$(tr -d '\r\n' < "$ROOT/VERSION")}
+VERSION=${VERSION:-$(tr -d '\r\n' < "$ROOT/cmd/cline-proxy/VERSION")}
 LDFLAGS="-s -w -X main.appVersion=$VERSION"
 
 if [ "$OS" = "windows" ]; then
@@ -27,7 +27,13 @@ if [ "$OS" = "windows" ]; then
   LDFLAGS="$LDFLAGS -H windowsgui"
 fi
 
+if [ "$OS" = "darwin" ]; then
+  # Wails 使用 UniformTypeIdentifiers，部分本机 Go/Cocoa 环境不会自动链接。
+  CGO_LDFLAGS="${CGO_LDFLAGS:-} -framework UniformTypeIdentifiers"
+  export CGO_LDFLAGS
+fi
+
 mkdir -p "$OUT"
 cd "$ROOT"
-go build -tags "desktop production" -trimpath -ldflags="$LDFLAGS" -o "$OUT/$NAME" .
+go build -tags "desktop production" -trimpath -ldflags="$LDFLAGS" -o "$OUT/$NAME" ./cmd/cline-proxy
 printf 'Built: %s (version %s)\n' "$OUT/$NAME" "$VERSION"

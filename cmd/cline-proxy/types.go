@@ -1,0 +1,89 @@
+package main
+
+import (
+	"sync"
+	"time"
+)
+
+type Account struct {
+	refreshMu        sync.Mutex // Serializes credential rotation across proxy and billing requests.
+	Subscription     string     `json:"subscription"` // unknown / free / pass；旧账号待确认，OAuth 可自动识别
+	AccountID        string     `json:"accountId"`
+	Email            string     `json:"email"`
+	RefreshToken     string     `json:"refreshToken"`
+	AccessToken      string     `json:"-"`
+	ExpiresAt        int64      `json:"-"`
+	Status           string     `json:"status"` // active, cooldown, expired
+	CooldownUntil    time.Time  `json:"cooldownUntil,omitempty"`
+	LastUsed         time.Time  `json:"lastUsed"`
+	UsageCount       int64      `json:"usageCount"`
+	PromptTokens     int64      `json:"promptTokens"`
+	CompletionTokens int64      `json:"completionTokens"`
+	TotalTokens      int64      `json:"totalTokens"`
+	CachedTokens     int64      `json:"cachedTokens"`
+	CreatedAt        time.Time  `json:"createdAt"`
+	// ModelStats 按模型细分的用量统计（仅记录 free 模型）
+	ModelStats map[string]*ModelStat `json:"modelStats,omitempty"`
+	// ModelCooldowns 模型级冷却：modelID → 恢复时间（429 时记录，只暂停该模型）
+	ModelCooldowns map[string]time.Time `json:"modelCooldowns,omitempty"`
+}
+
+type Model struct {
+	ID       string `json:"id"`
+	Provider string `json:"provider"`
+	Cost     string `json:"cost"`   // legacy compatibility: "free" | "pass"
+	Status   string `json:"status"` // "active"
+	Custom   bool   `json:"custom"` // true=用户手动添加，可删除
+	// Group 是模型的官方访问分组：free / pass / recommended。
+	// 空值表示旧数据或用户自定义模型，读取时回退到 Cost。
+	Group string `json:"group,omitempty"`
+	// Source 标记模型来源："remote"=从 Cline 官方接口同步，"zen"=从 opencode 官方接口同步，空=内置/用户自定义
+	Source string `json:"source,omitempty"`
+	// Context / Output 上下文与最大输出 token（opencode 模型记录；0=未知）
+	Context int `json:"context,omitempty"`
+	Output  int `json:"output,omitempty"`
+}
+
+// ModelStat 是单个模型在某账号下的用量统计（仅统计 free 模型）。
+type ModelStat struct {
+	ModelID          string `json:"modelId"`
+	Cost             string `json:"cost"`
+	UsageCount       int64  `json:"usageCount"`
+	PromptTokens     int64  `json:"promptTokens"`
+	CompletionTokens int64  `json:"completionTokens"`
+	TotalTokens      int64  `json:"totalTokens"`
+	CachedTokens     int64  `json:"cachedTokens"`
+}
+
+type AdminUser struct {
+	ID                 string    `json:"id"`
+	Username           string    `json:"username"`
+	PasswordHash       string    `json:"passwordHash"`
+	PasswordSalt       string    `json:"passwordSalt,omitempty"`
+	Role               string    `json:"role,omitempty"` // admin / user
+	CreatedAt          time.Time `json:"createdAt"`
+	MustChangePassword bool      `json:"mustChangePassword,omitempty"`
+}
+
+type AccountPool struct {
+	Accounts     []*Account          `json:"accounts"`
+	CurrentIdx   int                 `json:"currentIdx"`
+	Keys         []string            `json:"keys,omitempty"`
+	KeyGroups    map[string][]string `json:"keyGroups,omitempty"`
+	GroupIndexes map[string]int      `json:"groupIndexes,omitempty"`
+	Models       []Model             `json:"models,omitempty"`
+	DefaultModel string              `json:"defaultModel,omitempty"`
+	AdminUsers   []AdminUser         `json:"adminUsers,omitempty"`
+	// 访问设置：监听地址与管理后台密码（后台 UI 保存）
+	ListenHost        string `json:"listenHost,omitempty"`
+	AdminPasswordHash string `json:"adminPasswordHash,omitempty"`
+	AdminPasswordSalt string `json:"adminPasswordSalt,omitempty"`
+}
+
+type LoginMethod int
+
+const (
+	MethodDeviceOAuth LoginMethod = iota
+	MethodRefreshToken
+	MethodSSOCookie
+)
