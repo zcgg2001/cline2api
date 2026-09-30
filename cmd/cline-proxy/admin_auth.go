@@ -25,6 +25,37 @@ func currentAdminUser(r *http.Request) (AdminUser, bool) {
 	return u, ok
 }
 
+// adminUserForSession resolves the cookie against the in-memory session and
+// current user record. It is shared by the HTML route and API middleware so
+// both make the same authentication decision.
+func adminUserForSession(r *http.Request) (AdminUser, bool) {
+	c, err := r.Cookie(adminSessionCookie)
+	if err != nil || c.Value == "" {
+		return AdminUser{}, false
+	}
+
+	adminSessionsMu.Lock()
+	session, ok := adminSessions[c.Value]
+	if ok && !time.Now().Before(session.ExpiresAt) {
+		delete(adminSessions, c.Value)
+		ok = false
+	}
+	adminSessionsMu.Unlock()
+	if !ok {
+		return AdminUser{}, false
+	}
+
+	p := loadPool()
+	poolMu.Lock()
+	defer poolMu.Unlock()
+	for _, u := range p.AdminUsers {
+		if u.ID == session.UserID && u.PasswordHash == session.PasswordHash {
+			return u, true
+		}
+	}
+	return AdminUser{}, false
+}
+
 func publicAdminUser(u AdminUser) map[string]any {
 	return map[string]any{"id": u.ID, "username": u.Username, "role": u.Role,
 		"mustChangePassword": u.MustChangePassword, "version": appVersion}

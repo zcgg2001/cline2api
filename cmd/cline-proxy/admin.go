@@ -115,43 +115,24 @@ func registerAdminRoutes(mux *http.ServeMux) {
 // requireAdminAuth 校验会话、用户状态和路由权限；无用户时也不匿名放行。
 func requireAdminAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		p := loadPool()
-		c, err := r.Cookie(adminSessionCookie)
-		if err != nil {
+		if _, err := r.Cookie(adminSessionCookie); err != nil {
 			writeAPI(w, http.StatusUnauthorized, apiResponse{Error: tAPI(r, "login_required")})
 			return
 		}
-		adminSessionsMu.Lock()
-		session, ok := adminSessions[c.Value]
-		if ok && !time.Now().Before(session.ExpiresAt) {
-			delete(adminSessions, c.Value)
-			ok = false
+		user, ok := adminUserForSession(r)
+		if !ok {
+			writeAPI(w, http.StatusUnauthorized, apiResponse{Error: tAPI(r, "session_expired")})
+			return
 		}
-		adminSessionsMu.Unlock()
-		if ok {
-			poolMu.Lock()
-			var user AdminUser
-			for _, u := range p.AdminUsers {
-				if u.ID == session.UserID && u.PasswordHash == session.PasswordHash {
-					user = u
-					break
-				}
+		if !authorizeAdminUser(r, user) {
+			key := "admin_required"
+			if user.MustChangePassword {
+				key = "password_change_required"
 			}
-			poolMu.Unlock()
-			if user.ID != "" {
-				if !authorizeAdminUser(r, user) {
-					key := "admin_required"
-					if user.MustChangePassword {
-						key = "password_change_required"
-					}
-					writeAPI(w, http.StatusForbidden, apiResponse{Error: tAPI(r, key)})
-					return
-				}
-				next(w, authenticatedRequest(r, user))
-				return
-			}
+			writeAPI(w, http.StatusForbidden, apiResponse{Error: tAPI(r, key)})
+			return
 		}
-		writeAPI(w, http.StatusUnauthorized, apiResponse{Error: tAPI(r, "session_expired")})
+		next(w, authenticatedRequest(r, user))
 	}
 }
 
@@ -541,8 +522,21 @@ func adminStaticHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.URL.Path == "/admin/" || r.URL.Path == "/admin" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "private, no-store")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+		w.Header().Set("Vary", "Cookie")
+		if _, ok := adminUserForSession(r); !ok {
+			if adminLoginHTMLBuildError != nil {
+				http.Error(w, "login page unavailable", http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(adminLoginHTML))
+			return
+		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(adminHTML))
+		_, _ = w.Write([]byte(adminHTML))
 		return
 	}
 	http.NotFound(w, r)
