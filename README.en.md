@@ -18,7 +18,7 @@ Cline API reverse proxy · multi-account rotation · three protocols · desktop 
 
 Cline2API is a reverse proxy with multi-account rotation, OpenAI Chat Completions / Responses and Anthropic Messages APIs, API key authentication, and a bilingual admin panel. A single-file cross-platform desktop app is included.
 
-Current version: **v1.2.0**. See [release notes](docs/releases/v1.2.0.md) for billing, account administration, persistence and the refreshed admin login experience.
+Current version: **v1.2.1**. See the [v1.2.1 release notes](docs/releases/v1.2.1.md) for the server-side authentication flash fix, and [v1.2.0 release notes](docs/releases/v1.2.0.md) for the broader admin and billing changes.
 
 **Built with**: Go (backend + proxy + desktop shell), HTML/CSS/JS (embedded admin frontend).
 
@@ -155,8 +155,8 @@ sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
 Pushing a `v*` tag triggers GitHub Actions to build and release all three platforms:
 
 ```bash
-git tag v1.2.0
-git push origin v1.2.0
+git tag v1.2.1
+git push origin v1.2.1
 ```
 
 ### Release zip (recommended for cloud-drive sharing)

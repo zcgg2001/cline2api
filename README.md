@@ -18,7 +18,7 @@ Cline API 反向代理 · 多账号轮询 · 三协议兼容 · 桌面端
 
 Cline2API 是 Cline API 的反向代理服务，支持多账号轮询、OpenAI Chat Completions / Responses 和 Anthropic Messages 三种协议、API Key 鉴权，内置中英文管理后台。提供跨平台桌面端单文件应用（Windows / macOS / Linux）。
 
-当前版本 **v1.2.0**：新增账号计费与用量面板、批量账号管理、原子持久化，以及焕新的后台登录界面。详见 [v1.2.0 发布说明](docs/releases/v1.2.0.md) 和 [v1.1 改进记录](docs/history/cline2api_v1.1.md)。
+当前版本 **v1.2.1**：修复未登录访问后台时的鉴权闪屏，服务端首个 HTML 不再包含管理界面。详见 [v1.2.1 发布说明](docs/releases/v1.2.1.md) 和 [v1.2.0 发布说明](docs/releases/v1.2.0.md)。
 
 **开发语言**：Go（后端 + 代理 + 桌面壳），HTML/CSS/JS（管理后台前端，内嵌于二进制）。
 
@@ -156,8 +156,8 @@ sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
 推送 `v*` 标签触发 GitHub Actions 三平台自动构建并发布 Release：
 
 ```bash
-git tag v1.2.0
-git push origin v1.2.0
+git tag v1.2.1
+git push origin v1.2.1
 ```
 
 ### 发布 zip（网盘分发推荐）
