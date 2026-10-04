@@ -40,6 +40,7 @@ func protocolTestServer(t *testing.T) string {
 	serverMu.Lock()
 	oldServer := currentServer
 	serverMu.Unlock()
+	serverErr := make(chan error, 1)
 	t.Cleanup(func() {
 		serverMu.Lock()
 		server := currentServer
@@ -50,13 +51,19 @@ func protocolTestServer(t *testing.T) string {
 			_ = server.Shutdown(ctx)
 			cancel()
 		}
+		// Wait for startProxy's deferred background-task shutdown before restoring
+		// globals that the recovery worker would otherwise keep accessing.
+		select {
+		case <-serverErr:
+		case <-time.After(3 * time.Second):
+			t.Error("protocol server and recovery worker did not stop")
+		}
 		serverMux = oldServerMux
 		zenConfigMu.Lock()
 		zenConfig = oldZenConfig
 		zenConfigMu.Unlock()
 	})
 
-	serverErr := make(chan error, 1)
 	go func() {
 		serverErr <- startProxy("127.0.0.1", port)
 	}()

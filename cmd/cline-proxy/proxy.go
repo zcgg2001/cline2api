@@ -545,7 +545,8 @@ func startProxy(host string, port int) error {
 	serverMu.Unlock()
 
 	// 启动后台冷却恢复巡检
-	startCooldownRecovery()
+	stopCooldownRecovery := startCooldownRecovery()
+	defer stopCooldownRecovery()
 
 	fmt.Println("")
 	fmt.Println(strings.Repeat("=", 58))
@@ -974,11 +975,20 @@ func parseCooldownUntil(body string) time.Time {
 
 // startCooldownRecovery 启动后台 goroutine，每 30 秒检查一次 cooldown 账号，
 // 对 CooldownUntil 已过期的账号执行探活，成功则自动激活。
-func startCooldownRecovery() {
+// The returned stop function cancels polling and waits for any current probe.
+func startCooldownRecovery() func() {
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
-		for range ticker.C {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
 			p := loadPool()
 			poolMu.Lock()
 			var toRecover []*Account
@@ -995,6 +1005,9 @@ func startCooldownRecovery() {
 			poolMu.Unlock()
 
 			for _, acc := range toRecover {
+				if ctx.Err() != nil {
+					return
+				}
 				log.Printf("cooldown recovery: testing %s", acc.Email)
 				result := testAccount(acc)
 				if result.OK {
@@ -1005,6 +1018,10 @@ func startCooldownRecovery() {
 			}
 		}
 	}()
+	return func() {
+		cancel()
+		<-done
+	}
 }
 
 // testAccount sends a minimal "hi" request through a specific account to verify
