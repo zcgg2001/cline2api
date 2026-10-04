@@ -76,6 +76,8 @@ func registerAdminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/api/keys/groups", auth(handleKeyGroups))
 	mux.HandleFunc("/admin/api/accounts/delete", auth(handleAdminAccountDelete))
 	mux.HandleFunc("/admin/api/accounts/batch-delete", auth(handleAdminBatchDelete))
+	mux.HandleFunc("/admin/api/accounts/disable", auth(handleAdminAccountDisable))
+	mux.HandleFunc("/admin/api/accounts/enable", auth(handleAdminAccountEnable))
 	mux.HandleFunc("/admin/api/accounts/export", auth(handleExportAccounts))
 	mux.HandleFunc("/admin/api/oauth/start", auth(handleOAuthStart))
 	mux.HandleFunc("/admin/api/oauth/status", auth(handleOAuthStatus))
@@ -1625,7 +1627,7 @@ func handleAdminStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p := loadPool()
-	active, cooldown, expired := 0, 0, 0
+	active, cooldown, expired, disabled := 0, 0, 0, 0
 	var usageCount, promptTokens, completionTokens, totalTokens, cachedTokens int64
 	poolMu.Lock()
 	totalAccounts := len(p.Accounts)
@@ -1635,6 +1637,10 @@ func handleAdminStats(w http.ResponseWriter, r *http.Request) {
 		completionTokens += a.CompletionTokens
 		totalTokens += a.TotalTokens
 		cachedTokens += a.CachedTokens
+		if a.Disabled {
+			disabled++
+			continue
+		}
 		switch a.Status {
 		case "active":
 			active++
@@ -1686,6 +1692,7 @@ func handleAdminStats(w http.ResponseWriter, r *http.Request) {
 			"active":           active,
 			"cooldown":         cooldown,
 			"expired":          expired,
+			"disabled":         disabled,
 			"usageCount":       usageCount,
 			"promptTokens":     promptTokens,
 			"completionTokens": completionTokens,

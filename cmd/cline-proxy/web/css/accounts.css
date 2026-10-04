@@ -125,3 +125,6 @@
 .ac-quota-unknown{background:var(--surface2)}
 .ac-billing-money,.ac-ledger-row{border-color:var(--border)}
 .ac-billing-error{color:var(--text)}
+
+.ac-badge.disabled{background:transparent;color:var(--text2);padding:0}
+.ac-badge.disabled:before{content:'';width:8px;height:8px;border-radius:50%;background:#9AA3B2}

@@ -13,7 +13,8 @@ type Account struct {
 	RefreshToken     string     `json:"refreshToken"`
 	AccessToken      string     `json:"-"`
 	ExpiresAt        int64      `json:"-"`
-	Status           string     `json:"status"` // active, cooldown, expired
+	Status           string     `json:"status"`             // active, cooldown, expired
+	Disabled         bool       `json:"disabled,omitempty"` // Manual routing switch, independent of credential health.
 	CooldownUntil    time.Time  `json:"cooldownUntil,omitempty"`
 	LastUsed         time.Time  `json:"lastUsed"`
 	UsageCount       int64      `json:"usageCount"`

@@ -300,7 +300,7 @@ func pickAccountForModelInGroups(model string, fallbackToActive bool, groups []s
 
 	active := make([]*Account, 0)
 	for _, a := range p.Accounts {
-		if a.Status == "active" && containsGroup(groups, a.Subscription) && (!paid || a.Subscription == "pass") {
+		if !a.Disabled && a.Status == "active" && containsGroup(groups, a.Subscription) && (!paid || a.Subscription == "pass") {
 			active = append(active, a)
 		}
 	}
@@ -357,7 +357,7 @@ func pickAccountForModelInGroups(model string, fallbackToActive bool, groups []s
 func pickAccountLocked(p *AccountPool) *Account {
 	active := make([]*Account, 0)
 	for _, a := range p.Accounts {
-		if a.Status == "active" && (a.Subscription == "free" || a.Subscription == "pass") {
+		if !a.Disabled && a.Status == "active" && (a.Subscription == "free" || a.Subscription == "pass") {
 			active = append(active, a)
 		}
 	}
@@ -420,6 +420,7 @@ func listAccounts() []*Account {
 			AccountID:        a.AccountID,
 			Email:            a.Email,
 			Status:           a.Status,
+			Disabled:         a.Disabled,
 			CooldownUntil:    a.CooldownUntil,
 			LastUsed:         a.LastUsed,
 			UsageCount:       a.UsageCount,

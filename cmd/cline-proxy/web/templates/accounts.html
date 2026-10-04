@@ -12,7 +12,7 @@
   <div class="ac-toolbar">
     <div class="ac-search"><label for="acSearch">搜索账号</label><input id="acSearch" type="search" placeholder="搜索邮箱或账号 ID" autocomplete="off"></div>
     <div><label for="accountGroupFilter">订阅分组</label><select id="accountGroupFilter"><option value="">全部分组</option><option value="free">Free</option><option value="pass">Pass</option><option value="unknown">待确认</option></select></div>
-    <div><label for="acStatus">账号状态</label><select id="acStatus"><option value="">全部状态</option><option value="ready">可参与调度</option><option value="attention">需要处理</option><option value="cooldown">账号冷却</option><option value="model-cooldown">模型冷却</option><option value="expired">凭据过期</option></select></div>
+    <div><label for="acStatus">账号状态</label><select id="acStatus"><option value="">全部状态</option><option value="ready">可参与调度</option><option value="attention">需要处理</option><option value="cooldown">账号冷却</option><option value="model-cooldown">模型冷却</option><option value="expired">凭据过期</option><option value="disabled">已禁用</option></select></div>
     <div><label for="acSort">排序方式</label><select id="acSort"><option value="recent">最近添加</option><option value="used">最近使用</option><option value="tokens">Token 用量</option><option value="requests">请求次数</option><option value="email">邮箱名称</option></select></div>
     <button class="btn" id="acClearFilters">重置筛选</button>
   </div>
@@ -27,7 +27,7 @@
     <button class="ac-link" id="acClearSelection">清除选择</button>
     <div class="ac-actions ac-bulk-actions">
       <label class="ac-sr-only" for="acBulkAction">批量操作</label>
-      <select id="acBulkAction"><option value="test">测试连接</option><option value="refresh">刷新凭据</option><option value="free">设为 Free</option><option value="pass">设为 Pass</option><option value="unknown">设为待确认</option><option value="export">导出所选</option><option value="delete">删除所选</option></select>
+      <select id="acBulkAction"><option value="test">测试连接</option><option value="refresh">刷新凭据</option><option value="free">设为 Free</option><option value="pass">设为 Pass</option><option value="unknown">设为待确认</option><option value="disable">禁用所选</option><option value="enable">启用所选</option><option value="export">导出所选</option><option value="delete">删除所选</option></select>
       <button class="btn" id="acRunBulk" disabled>执行</button>
     </div>
   </div>
@@ -43,7 +43,7 @@
     <div class="ac-actions"><label for="acPageSize">每页</label><select id="acPageSize"><option value="12">12</option><option value="24">24</option><option value="48">48</option></select><span id="acRange" class="ac-muted"></span></div>
     <div class="ac-actions"><button class="btn" id="acPrev">上一页</button><span id="acPageLabel" aria-live="polite"></span><button class="btn" id="acNext">下一页</button></div>
   </div>
-  <p class="ac-footnote">待确认账号不参与调度；模型冷却仅影响对应模型。批量操作最多选择 1000 个账号。</p>
+  <p class="ac-footnote">已禁用或待确认账号不参与调度；模型冷却仅影响对应模型。批量操作最多选择 1000 个账号。</p>
 </div>
 
 <dialog id="acDetail" class="ac-detail" aria-labelledby="acDetailTitle">

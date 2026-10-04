@@ -250,7 +250,7 @@ func startProxy(host string, port int) error {
 	loadRequestLogs()
 	activeCount := 0
 	for _, a := range p.Accounts {
-		if a.Status == "active" && (a.Subscription == "free" || a.Subscription == "pass") {
+		if !a.Disabled && a.Status == "active" && (a.Subscription == "free" || a.Subscription == "pass") {
 			// Try to pre-warm tokens
 			if a.AccessToken == "" || time.Now().UnixMilli() >= a.ExpiresAt {
 				if err := refreshAccountToken(a); err != nil {
@@ -983,7 +983,7 @@ func startCooldownRecovery() {
 			poolMu.Lock()
 			var toRecover []*Account
 			for _, acc := range p.Accounts {
-				if acc.Status != "cooldown" || (acc.Subscription != "free" && acc.Subscription != "pass") {
+				if acc.Disabled || acc.Status != "cooldown" || (acc.Subscription != "free" && acc.Subscription != "pass") {
 					continue
 				}
 				// 有恢复时间且已过期 → 探活
@@ -1788,13 +1788,16 @@ func handleAnthropicMessages(w http.ResponseWriter, r *http.Request) {
 
 	activeCount := 0
 	p := loadPool()
+	poolMu.Lock()
+	totalAccounts := len(p.Accounts)
 	for _, a := range p.Accounts {
-		if a.Status == "active" {
+		if !a.Disabled && a.Status == "active" {
 			activeCount++
 		}
 	}
+	poolMu.Unlock()
 
-	if activeCount == 0 && len(p.Accounts) == 0 {
+	if activeCount == 0 && totalAccounts == 0 {
 		writeJSON(w, http.StatusUnauthorized, map[string]any{
 			"error": map[string]string{
 				"message": "No accounts in pool",

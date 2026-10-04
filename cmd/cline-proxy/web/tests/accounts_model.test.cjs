@@ -32,6 +32,16 @@ test('refresh preserves cross-page selection but removes accounts no longer pres
   assert.deepEqual([...model.reconcileSelection(selected,accounts)],['a','c']);
   assert.deepEqual([...selected],['a','c','gone']);
 });
+test('disabled accounts stay visible but are excluded from routing availability',()=>{
+  const disabled={...accounts[0],disabled:true};
+  const mixed=[disabled,accounts[1],accounts[2]];
+  assert.equal(model.ready(disabled),false);
+  assert.equal(model.attention(disabled,now),true);
+  assert.deepEqual(model.filter(mixed,{status:'ready'},now).map(a=>a.accountId),['b']);
+  assert.deepEqual(model.filter(mixed,{status:'disabled'},now).map(a=>a.accountId),['a']);
+  assert.equal(model.filter(mixed,{},now).length,3);
+  assert.equal(model.ready({...disabled,disabled:false}),true);
+});
 test('official quota percentages distinguish zero, missing and exhausted values',()=>{
   assert.deepEqual(model.quotaDisplay(0),{known:true,percent:0,barValue:0,tone:'normal'});
   assert.equal(model.quotaDisplay(null).known,false);

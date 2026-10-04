@@ -9,6 +9,48 @@ import (
 
 const maxAccountSelection = 1000
 
+// POST /admin/api/accounts/{disable,enable}, body: { accountIds: [...] }.
+func handleAdminAccountDisable(w http.ResponseWriter, r *http.Request) {
+	setSelectedAccountsDisabled(w, r, true)
+}
+
+func handleAdminAccountEnable(w http.ResponseWriter, r *http.Request) {
+	setSelectedAccountsDisabled(w, r, false)
+}
+
+func setSelectedAccountsDisabled(w http.ResponseWriter, r *http.Request, disabled bool) {
+	if r.Method != http.MethodPost {
+		writeAPI(w, http.StatusMethodNotAllowed, apiResponse{Error: tAPI(r, "method_not_allowed")})
+		return
+	}
+	ids, err := readAccountSelection(w, r)
+	if err != nil {
+		writeAPI(w, http.StatusBadRequest, apiResponse{Error: err.Error()})
+		return
+	}
+	p := loadPool()
+	poolMu.Lock()
+	defer poolMu.Unlock()
+	accounts, err := selectedAccountsLocked(p, ids)
+	if err != nil {
+		writeAPI(w, http.StatusNotFound, apiResponse{Error: err.Error()})
+		return
+	}
+	previous := make([]bool, len(accounts))
+	for i, a := range accounts {
+		previous[i] = a.Disabled
+		a.Disabled = disabled
+	}
+	if err := savePoolLocked(); err != nil {
+		for i, a := range accounts {
+			a.Disabled = previous[i]
+		}
+		writeAPI(w, http.StatusInternalServerError, apiResponse{Error: tAPI(r, "account_save_failed")})
+		return
+	}
+	writeAPI(w, http.StatusOK, apiResponse{Success: true, Data: map[string]any{"updated": len(accounts), "disabled": disabled}})
+}
+
 func readAccountSelection(w http.ResponseWriter, r *http.Request) ([]string, error) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var req struct {

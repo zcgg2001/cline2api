@@ -8,7 +8,7 @@ const AccountListModel = (() => {
     return Object.entries(account.modelCooldowns || {}).filter(([, until]) => timestamp(until) > now);
   }
   function ready(account) {
-    return account.status === 'active' && ['free', 'pass'].includes(account.subscription);
+    return !account.disabled && account.status === 'active' && ['free', 'pass'].includes(account.subscription);
   }
   function attention(account, now = Date.now()) {
     return !ready(account) || cooldowns(account, now).length > 0;
@@ -20,6 +20,7 @@ const AccountListModel = (() => {
       if (options.group && (a.subscription || 'unknown') !== options.group) return false;
       switch (options.status) {
         case 'ready': return ready(a);
+        case 'disabled': return !!a.disabled;
         case 'attention': return attention(a, now);
         case 'model-cooldown': return cooldowns(a, now).length > 0;
         case 'cooldown': case 'expired': return a.status === options.status;

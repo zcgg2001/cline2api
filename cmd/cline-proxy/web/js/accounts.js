@@ -7,11 +7,15 @@ const accountTranslations = {
   '重置筛选':'Reset filters','用量为累计统计':'Lifetime usage','显示方式':'Display mode','卡片':'Cards','列表':'Table',
   '选择本页':'Select page','选择全部筛选结果':'Select all matches','清除选择':'Clear selection','批量操作':'Bulk action',
   '测试连接':'Test connection','刷新凭据':'Refresh credentials','设为 Free':'Set Free','设为 Pass':'Set Pass','设为待确认':'Mark unconfirmed',
+  '禁用所选':'Disable selected','启用所选':'Enable selected','已禁用':'Disabled','禁用账号':'Disable account','启用账号':'Enable account',
+  '账号已禁用':'Account disabled','账号已启用':'Account enabled',
+  '禁用后不再参与调度，账号凭据和历史统计会保留。继续？':'Disabled accounts will be excluded from routing. Credentials and usage history are retained. Continue?',
+  '启用后，订阅已确认且状态活跃的账号可重新参与调度。继续？':'Enabled accounts can resume routing when their subscription is confirmed and credentials are active. Continue?',
   '导出所选':'Export selected','删除所选':'Delete selected','执行':'Apply','停止后续任务':'Stop pending tasks',
   '查看逐项结果':'View individual results','每页':'Per page','上一页':'Previous','下一页':'Next',
-  '待确认账号不参与调度；模型冷却仅影响对应模型。批量操作最多选择 1000 个账号。':'Unconfirmed accounts are excluded from routing. Model cooldowns affect only those models. Select up to 1,000 accounts per operation.',
+  '已禁用或待确认账号不参与调度；模型冷却仅影响对应模型。批量操作最多选择 1000 个账号。':'Disabled or unconfirmed accounts are excluded from routing. Model cooldowns affect only those models. Select up to 1,000 accounts per operation.',
   '账号详情':'Account details','关闭详情':'Close details','全部账号':'All accounts','账号池总量':'Accounts in the pool','选择账号':'Select account',
-  '已确认订阅且状态活跃':'Confirmed subscription and active status','过期、冷却或订阅待确认':'Expired, cooling or unconfirmed',
+  '已确认订阅且状态活跃':'Confirmed subscription and active status','禁用、过期、冷却或订阅待确认':'Disabled, expired, cooling or unconfirmed',
   '确认后才能参与调度':'Confirm before routing','已选择':'Selected','个账号':'accounts','已更新':'Updated',
   '没有符合条件的账号':'No matching accounts','试试调整搜索关键词或筛选条件。':'Try a different search or filter.',
   '还没有账号':'No accounts yet','添加 Cline 账号后，即可查看状态与用量。':'Add a Cline account to view its status and usage.',
@@ -59,7 +63,8 @@ function accountActionButton(action, id, label, extra = '') {
 function accountBadge(a) {
   let kind = a.status === 'active' ? 'ready' : a.status === 'cooldown' ? 'cooldown' : 'expired';
   let label = a.status === 'active' ? '活跃' : a.status === 'cooldown' ? '账号冷却' : '凭据过期';
-  if (a.status === 'active' && !AccountListModel.ready(a)) { kind = 'attention'; label = '订阅待确认'; }
+  if (a.disabled) { kind = 'disabled'; label = '已禁用'; }
+  else if (a.status === 'active' && !AccountListModel.ready(a)) { kind = 'attention'; label = '订阅待确认'; }
   const cooling = AccountListModel.cooldowns(a).length;
   return '<span class="ac-badge '+kind+'">'+esc(t(label))+'</span>' +
     (cooling ? '<span class="ac-badge cooldown">'+cooling+' '+esc(t('模型受限'))+'</span>' : '');
@@ -103,7 +108,7 @@ function renderAccountSummary() {
   const stats = [
     ['all','全部账号',all.length,'账号池总量', !options.status && !options.group],
     ['ready','可参与调度',all.filter(AccountListModel.ready).length,'已确认订阅且状态活跃',options.status==='ready'],
-    ['attention','需要处理',all.filter(a=>AccountListModel.attention(a)).length,'过期、冷却或订阅待确认',options.status==='attention'],
+    ['attention','需要处理',all.filter(a=>AccountListModel.attention(a)).length,'禁用、过期、冷却或订阅待确认',options.status==='attention'],
     ['unknown','待确认',all.filter(a=>!['free','pass'].includes(a.subscription)).length,'确认后才能参与调度',options.group==='unknown'],
   ];
   _('acSummary').innerHTML = stats.map(([key,label,count,note,active])=>'<button data-summary="'+key+'" aria-pressed="'+active+'"><span class="ac-summary-label">'+esc(t(label))+'</span><strong class="ac-summary-value">'+formatNumber(count)+'</strong><span class="ac-summary-note">'+esc(t(note))+'</span></button>').join('');
@@ -202,17 +207,17 @@ function renderAccountDetail() {
   _('acDetailBody').innerHTML = '<section><div class="ac-actions">'+accountGroupBadge(a)+accountBadge(a)+'</div><p class="ac-footnote">'+t('详情中的凭据均已隐藏')+'</p><dl>'+fields.map(([key,val])=>'<dt>'+esc(t(key))+'</dt><dd>'+esc(val)+'</dd>').join('')+'</dl></section>'+
     '<section><div class="ac-card-metrics"><div><span>'+t('累计请求')+'</span><strong>'+formatNumber(a.usageCount)+'</strong></div><div><span>'+t('累计 Token')+'</span><strong>'+formatTokenCount(a.totalTokens)+'</strong></div><div><span>'+t('缓存 Token')+'</span><strong>'+formatTokenCount(a.cachedTokens)+'</strong></div></div></section>'+
     (isAdmin()?'<section class="ac-billing-detail" data-billing-id="'+accountAttr(a.accountId)+'" data-billing-detail="true">'+accountBillingHTML(a.accountId,true)+'</section>':'')+
-    (isAdmin()?'<section><h3>'+t('变更订阅')+'</h3><div class="ac-actions"><select id="acDetailGroup" aria-label="'+t('订阅分组')+'"'+(accountView.busy?' disabled':'')+'>'+['unknown','free','pass'].map(g=>'<option value="'+g+'"'+((a.subscription||'unknown')===g?' selected':'')+'>'+subscriptionLabel(g)+'</option>').join('')+'</select>'+accountActionButton('group',a.accountId,'保存')+'</div><div class="ac-actions">'+accountActionButton('test',a.accountId,'测试连接')+accountActionButton('refresh',a.accountId,'刷新凭据')+accountActionButton('export',a.accountId,'导出')+accountActionButton('delete',a.accountId,'删除账号','btn-danger')+'</div></section>':'')+
+    (isAdmin()?'<section><h3>'+t('变更订阅')+'</h3><div class="ac-actions"><select id="acDetailGroup" aria-label="'+t('订阅分组')+'"'+(accountView.busy?' disabled':'')+'>'+['unknown','free','pass'].map(g=>'<option value="'+g+'"'+((a.subscription||'unknown')===g?' selected':'')+'>'+subscriptionLabel(g)+'</option>').join('')+'</select>'+accountActionButton('group',a.accountId,'保存')+'</div><div class="ac-actions">'+accountActionButton('test',a.accountId,'测试连接')+accountActionButton('refresh',a.accountId,'刷新凭据')+accountActionButton(a.disabled?'enable':'disable',a.accountId,a.disabled?'启用账号':'禁用账号')+accountActionButton('export',a.accountId,'导出')+accountActionButton('delete',a.accountId,'删除账号','btn-danger')+'</div></section>':'')+
     '<section><h3>'+t('按模型用量与冷却')+'</h3>'+(models.length?models.map(id=>{const m=(a.modelStats||{})[id]||{};return '<div class="ac-detail-model"><strong>'+esc(id)+'</strong><p>'+formatNumber(m.usageCount)+' req · '+formatTokenCount(m.totalTokens)+' tok</p><p>'+t('输入 / 输出')+' '+formatTokenCount(m.promptTokens)+' / '+formatTokenCount(m.completionTokens)+' · '+t('缓存 Token')+' '+formatTokenCount(m.cachedTokens)+'</p>'+(cooled.has(id)?'<span class="ac-badge cooldown">'+t('恢复时间')+' '+esc(accountDate(cooled.get(id)))+'</span>':'')+'</div>';}).join(''):'<p class="ac-muted">'+t('暂无模型用量记录')+'</p>')+'</section>'+accountResult(a);
 }
-function operationLabel(action) { return {test:'测试连接',refresh:'刷新凭据',delete:'删除所选',export:'导出所选',free:'设为 Free',pass:'设为 Pass',unknown:'设为待确认'}[action]; }
+function operationLabel(action) { return {disable:'禁用所选',enable:'启用所选',test:'测试连接',refresh:'刷新凭据',delete:'删除所选',export:'导出所选',free:'设为 Free',pass:'设为 Pass',unknown:'设为待确认'}[action]; }
 async function runAccountOperation(action, requestedIDs) {
   if (!isAdmin() || accountView.busy || !operationLabel(action)) return;
   const existing = new Map(accountView.accounts.map(a=>[a.accountId,a]));
   const ids = [...new Set(requestedIDs)].filter(id=>existing.has(id));
   if (!ids.length) { toast(t('没有选择账号'),'error'); return; }
   if (ids.length>1000) { toast(t('最多选择 1000 个账号'),'error'); return; }
-  const confirmations = {test:'测试会向上游发送一条短请求，可能消耗少量额度。继续？',refresh:'刷新凭据会连接上游，保留历史统计。继续？',delete:'将永久删除所选账号，无法撤销。继续？',export:'导出文件包含账号凭据，请妥善保存。继续？'};
+  const confirmations = {disable:'禁用后不再参与调度，账号凭据和历史统计会保留。继续？',enable:'启用后，订阅已确认且状态活跃的账号可重新参与调度。继续？',test:'测试会向上游发送一条短请求，可能消耗少量额度。继续？',refresh:'刷新凭据会连接上游，保留历史统计。继续？',delete:'将永久删除所选账号，无法撤销。继续？',export:'导出文件包含账号凭据，请妥善保存。继续？'};
   const sample = ids.slice(0,3).map(id=>accountName(existing.get(id))).join('\n');
   if (!confirm(t(operationLabel(action))+' · '+ids.length+' '+t('个账号')+'\n'+sample+(ids.length>3?'\n…':'')+'\n\n'+t(confirmations[action]||'确认变更这些账号的订阅分组？'))) return;
   accountView.busy = true; accountView.cancelled = false;
@@ -255,6 +260,9 @@ async function runAccountOperation(action, requestedIDs) {
       await api('POST','/accounts/batch-delete',{accountIds:ids});
       ids.forEach(id=>{accountView.selected.delete(id);record(id,true,t('删除完成'));});
       if(ids.includes(accountView.detailID)) _('acDetail').close();
+    } else if (action==='disable'||action==='enable') {
+      await api('POST','/accounts/'+action,{accountIds:ids});
+      ids.forEach(id=>record(id,true,t(action==='disable'?'账号已禁用':'账号已启用')));
     } else if (['free','pass','unknown'].includes(action)) {
       await api('POST','/accounts/subscription',{accountIds:ids,subscription:action});
       ids.forEach(id=>record(id,true,t('订阅已更新')));

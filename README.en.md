@@ -26,7 +26,7 @@ Current version: **v1.2.1**. See the [v1.2.1 release notes](docs/releases/v1.2.1
 
 - **Three protocols**: `/v1/chat/completions`, `/v1/responses`, and `/v1/messages`
 - **Admin roles**: administrators manage configuration; ordinary users can view accounts, stats, models and logs, and change their own password
-- **Account management**: status overview, email/ID search, filters, sorting, cards/table, pagination and details; selected-account testing, refresh, grouping, export and deletion with per-account results
+- **Account management**: status overview, email/ID search, filters, sorting, cards/table, pagination and details; selected-account testing, refresh, enable/disable, grouping, export and deletion with per-account results
 - **Official quota and billing**: administrators can sync ClinePass 5-hour/weekly/monthly usage and reset times, personal wallet balance, actual charges in the latest 20 usage records, and listed subscription price; unavailable data stays unknown
 - **Multi-account rotation**: load-balances across Cline accounts (`round_robin` / `fill` / `random`)
 - **Bilingual admin panel**: `/admin/` manages accounts, API keys, models, headers and proxy settings; auto-follows your browser language, manually switchable in the sidebar
@@ -103,6 +103,7 @@ OpenAI Chat Completions / Responses and Anthropic Messages are supported.
 
 - **Export**: click "Export" on the Accounts page to download `cline-accounts-export.json`
 - **Import**: upload that file via "Import from File" on another device
+- **Bulk disable/enable**: Select accounts on the management page (current page or all matches), choose "Disable selected" or "Enable selected", then apply. Up to 1,000 accounts per operation. Disabled accounts are excluded from new request routing; credentials, subscription, cooldowns and usage history remain intact. Restarting or refreshing credentials does not enable them. Requests already in progress can finish.
 - The export format is fully compatible with the batch-import format
 
 ### 4. System Prompt override

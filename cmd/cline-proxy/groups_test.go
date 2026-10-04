@@ -110,6 +110,107 @@ func TestGroupSelectionStrategiesAndCooldown(t *testing.T) {
 	}
 }
 
+func TestDisabledAccountsNeverSelectedOrReenabledByHealthUpdates(t *testing.T) {
+	groupTestState(t)
+	for _, strategy := range []string{"fill", "random", "round_robin"} {
+		t.Run(strategy, func(t *testing.T) {
+			blocked, available := groupedAccount("blocked", "pass"), groupedAccount("available", "free")
+			blocked.Disabled = true
+			pool = &AccountPool{Accounts: []*Account{blocked, available}}
+			cfg := defaultProxyConfig()
+			cfg.Strategy = strategy
+			setProxyConfig(cfg)
+			for i := 0; i < 8; i++ {
+				if a := pickAccount(); a != available {
+					t.Fatal("ordinary selection used disabled account")
+				}
+				if a := pickAccountForModelInGroups(freeModelPrimary, false, []string{"free", "pass"}); a != available {
+					t.Fatal("group selection used disabled account")
+				}
+			}
+			available.ModelCooldowns = map[string]time.Time{freeModelPrimary: time.Now().Add(time.Hour)}
+			if a := pickAccountForModelInGroups(freeModelPrimary, false, []string{"free", "pass"}); a != nil {
+				t.Fatal("strict selection used disabled account")
+			}
+			if a := pickAccountForModel(freeModelPrimary); a != available {
+				t.Fatal("cooldown fallback used disabled account")
+			}
+			if a := pickAccountForModelStrict("cline-pass/glm-5.2"); a != nil {
+				t.Fatal("paid model used disabled Pass account")
+			}
+			setAccountStatus(blocked, "active", time.Time{})
+			if !blocked.Disabled {
+				t.Fatal("health update reenabled disabled account")
+			}
+			stats := subscriptionUsage()
+			if stats[1].Accounts != 1 || stats[1].Active != 0 {
+				t.Fatal("disabled account counted as active in group stats")
+			}
+			available.Disabled = true
+			if pickAccount() != nil || pickAccountForModel(freeModelPrimary) != nil {
+				t.Fatal("all-disabled pool still schedules accounts")
+			}
+		})
+	}
+	blocked := groupedAccount("refresh-disabled", "free")
+	blocked.Disabled, blocked.ExpiresAt, blocked.RefreshToken = true, 0, "fake-refresh"
+	pool = &AccountPool{Accounts: []*Account{blocked}}
+	httpClient.Transport = freeModelRoundTripper(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"data":{"accessToken":"refreshed","refreshToken":"rotated","expiresAt":4102444800000}}`)), Header: make(http.Header), Request: r}, nil
+	})
+	if err := refreshAccountToken(blocked); err != nil {
+		t.Fatal(err)
+	}
+	if !blocked.Disabled || pickAccount() != nil {
+		t.Fatal("credential refresh reenabled disabled account")
+	}
+}
+
+func TestDisabledPoolBlocksAllProtocolsUntilEnabled(t *testing.T) {
+	groupTestState(t)
+	acc := groupedAccount("disabled", "free")
+	acc.Disabled = true
+	pool = &AccountPool{Accounts: []*Account{acc}, Keys: []string{"key"}, KeyGroups: map[string][]string{"key": {"free"}}}
+	calls := 0
+	httpClient.Transport = freeModelRoundTripper(func(r *http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"id":"ok","choices":[{"message":{"role":"assistant","content":"hi"},"finish_reason":"stop"}]}`)), Header: make(http.Header), Request: r}, nil
+	})
+	base := protocolTestServer(t)
+	client := &http.Client{Transport: &http.Transport{}, Timeout: 3 * time.Second}
+	for _, enabled := range []bool{false, true} {
+		if enabled {
+			w := jsonRecorder(handleAdminAccountEnable, `{"accountIds":["disabled"]}`)
+			if w.Code != 200 {
+				t.Fatal(w.Body.String())
+			}
+		}
+		for _, path := range []string{"/v1/chat/completions", "/v1/responses", "/v1/messages"} {
+			r, _ := http.NewRequest("POST", base+path, strings.NewReader(fmt.Sprintf(`{"model":%q,"input":"hi","messages":[{"role":"user","content":"hi"}]}`, freeModelPrimary)))
+			r.Header.Set("x-api-key", "key")
+			resp, err := client.Do(r)
+			if err != nil {
+				t.Fatal(err)
+			}
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+			want := 503
+			if enabled {
+				want = 200
+			}
+			if resp.StatusCode != want {
+				t.Fatalf("%s enabled=%v: status %d", path, enabled, resp.StatusCode)
+			}
+		}
+		if !enabled && calls != 0 {
+			t.Fatal("disabled pool sent requests upstream")
+		}
+	}
+	if calls != 3 {
+		t.Fatal("enable required restart to restore routing")
+	}
+}
+
 func TestGroupFreeRetriesNeverEscapeScope(t *testing.T) {
 	for _, failure := range []string{"429", "transport", "refresh"} {
 		t.Run(failure, func(t *testing.T) {

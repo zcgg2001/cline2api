@@ -243,7 +243,7 @@ func subscriptionUsage() []groupUsage {
 		for i := range result {
 			if result[i].Subscription == subscriptionValue(a.Subscription) {
 				result[i].Accounts++
-				if a.Status == "active" {
+				if !a.Disabled && a.Status == "active" {
 					result[i].Active++
 				}
 			}
